@@ -1,0 +1,18 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "node ./scripts/src/preinstall.mjs",
+    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "dev": "pnpm -r --parallel --filter ./artifacts/** --if-present run dev",
+    "seed": "pnpm --filter @workspace/scripts exec tsx src/seed.ts"
+  },
+  "private": true,
+  "devDependencies": {
+    "prettier": "^3.9.6",
+    "typescript": "~5.9.3"
+  }
+}

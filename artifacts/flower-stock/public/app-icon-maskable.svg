@@ -1,0 +1,17 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Maskable icon: the whole drawing stays inside the central 80% safe zone. -->
+  <rect width="512" height="512" fill="#5C1F36"/>
+  <g transform="translate(256 240) scale(0.82)">
+    <g fill="#F7EDF1">
+      <ellipse cx="0" cy="-72" rx="34" ry="52"/>
+      <ellipse cx="0" cy="-72" rx="34" ry="52" transform="rotate(72)"/>
+      <ellipse cx="0" cy="-72" rx="34" ry="52" transform="rotate(144)"/>
+      <ellipse cx="0" cy="-72" rx="34" ry="52" transform="rotate(216)"/>
+      <ellipse cx="0" cy="-72" rx="34" ry="52" transform="rotate(288)"/>
+    </g>
+    <circle cx="0" cy="0" r="34" fill="#C98BA5"/>
+    <path d="M0 34 L0 150" stroke="#8FBFA0" stroke-width="20" stroke-linecap="round" fill="none"/>
+    <path d="M0 92 C-44 78 -68 100 -72 138 C-34 146 -6 128 0 92 Z" fill="#8FBFA0"/>
+    <path d="M0 122 C44 108 68 130 72 168 C34 176 6 158 0 122 Z" fill="#8FBFA0"/>
+  </g>
+</svg>

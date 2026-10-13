@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Arial, sans-serif;
+    margin: 0;
+    padding: 28px 32px;
+    color: #111;
+    font-size: 13px;
+    width: 900px;
+    background: #fff;
+  }
+  h1 { font-size: 19px; margin: 0 0 4px; }
+  .muted { color: #555; }
+  .head { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #111; padding-bottom: 12px; }
+  .doc { text-align: right; }
+  .doc div { margin-bottom: 2px; }
+  .parties { display: flex; gap: 40px; margin: 14px 0 18px; }
+  .parties section { flex: 1; }
+  .parties h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: #666; margin: 0 0 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #999; padding: 5px 7px; }
+  thead th { background: #eee; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; }
+  td.num, th.num { text-align: right; }
+  tfoot td { font-weight: 700; background: #fafafa; }
+  .totals { margin-top: 16px; width: 380px; margin-left: auto; }
+  .totals td { border: none; padding: 3px 0; }
+  .totals td:last-child { text-align: right; font-weight: 600; }
+  .sign { margin-top: 34px; display: flex; justify-content: space-between; }
+  .sign div { width: 45%; border-top: 1px solid #111; padding-top: 5px; font-size: 11px; color: #444; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div>
+      <h1>Товарная накладная № 5188</h1>
+      <div class="muted">от 10 сентября 2026 г.</div>
+    </div>
+    <div class="doc">
+      <div><strong>Поставщик:</strong> ООО «Флора Импорт»</div>
+      <div class="muted">ИНН 7712345678</div>
+      <div class="muted">Москва, ул. Цветочная, 14</div>
+    </div>
+  </div>
+
+  <div class="parties">
+    <section>
+      <h2>Покупатель</h2>
+      <div>ООО «ФлораСклад», ИНН 7798765432</div>
+      <div class="muted">Москва, Ленинский пр-т, 3</div>
+    </section>
+    <section>
+      <h2>Основание</h2>
+      <div>Договор поставки № 118 от 12.01.2026</div>
+    </section>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:34px">№</th>
+        <th>Наименование товара</th>
+        <th style="width:66px">Ед.</th>
+        <th class="num" style="width:74px">Кол-во</th>
+        <th class="num" style="width:92px">Цена, ₽</th>
+        <th class="num" style="width:104px">Сумма, ₽</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Орхидея Фаленопсис белая, 70 см</td><td>стебель</td><td class="num">40</td><td class="num">520,00</td><td class="num">20 800,00</td></tr>
+      <tr><td>2</td><td>Сухоцвет лагурус зайцехвост, пучок</td><td>упак.</td><td class="num">25</td><td class="num">180,00</td><td class="num">4 500,00</td></tr>
+      <tr><td>3</td><td>Роза Эквадор красная, Freedom, 60 см</td><td>стебель</td><td class="num">200</td><td class="num">94,00</td><td class="num">18 800,00</td></tr>
+    </tbody>
+    <tfoot>
+      <tr>
+        <td colspan="3">Итого</td>
+        <td class="num">265</td>
+        <td></td>
+        <td class="num">44 100,00</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <table class="totals">
+    <tr><td>Сумма без НДС</td><td>44 100,00 ₽</td></tr>
+    <tr><td>НДС 20%</td><td>8 820,00 ₽</td></tr>
+    <tr><td>Всего к оплате</td><td>52 920,00 ₽</td></tr>
+  </table>
+
+  <div class="sign">
+    <div>Отпустил: Иванова М. П. ______________</div>
+    <div>Принял: ______________</div>
+  </div>
+</body>
+</html>

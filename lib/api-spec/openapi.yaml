@@ -1,0 +1,1834 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: API внутреннего склада цветочного магазина
+servers:
+  - url: /api
+tags:
+  - name: health
+  - name: auth
+  - name: dashboard
+  - name: products
+  - name: movements
+  - name: bouquets
+  - name: analytics
+  - name: assistant
+paths:
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Текущий пользователь или 401, если сессии нет
+      responses:
+        "200":
+          description: Текущая сессия
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "401":
+          description: Требуется вход
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Вход по логину и паролю
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Сессия создана, cookie установлена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400": { description: Неверные данные запроса }
+        "401":
+          description: Неверный логин или пароль
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "429":
+          description: Слишком много попыток
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/device:
+    get:
+      operationId: getTrustedDevice
+      tags: [auth]
+      summary: Состояние доверенного устройства по cookie
+      responses:
+        "200":
+          description: Устройство доверено, доступен выбор сотрудника
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrustedDevice"
+        "401":
+          description: Устройство не доверено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/device/users:
+    get:
+      operationId: listDeviceUsers
+      tags: [auth]
+      summary: Сотрудники, которым разрешён вход по PIN на этом устройстве
+      responses:
+        "200":
+          description: Список сотрудников
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeviceUser"
+        "401":
+          description: Устройство не доверено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/device/pin:
+    post:
+      operationId: loginWithPin
+      tags: [auth]
+      summary: Вход по PIN на доверенном устройстве
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PinLoginInput"
+      responses:
+        "200":
+          description: Сессия создана
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSession"
+        "400": { description: PIN не задан }
+        "401":
+          description: Неверный PIN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "423":
+          description: PIN временно заблокирован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /auth/devices:
+    post:
+      operationId: trustCurrentDevice
+      tags: [auth]
+      summary: Сделать текущий браузер доверенным устройством склада
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrustDeviceInput"
+      responses:
+        "201":
+          description: Устройство добавлено
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrustedDeviceRecord"
+        "403": { description: Только администратор }
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Завершить текущую сессию
+      responses:
+        "204": { description: Сессия закрыта }
+  /users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: Список сотрудников
+      responses:
+        "200":
+          description: Сотрудники
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ManagedUser"
+        "403": { description: Только администратор }
+    post:
+      operationId: createUser
+      tags: [auth]
+      summary: Создать сотрудника
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserInput"
+      responses:
+        "201":
+          description: Сотрудник создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedUser"
+        "400":
+          description: Логин занят или пароль не подходит
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403": { description: Только администратор }
+  /users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    patch:
+      operationId: updateUser
+      tags: [auth]
+      summary: Изменить сотрудника, сменить пароль или сбросить PIN
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserInput"
+      responses:
+        "200":
+          description: Сотрудник обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedUser"
+        "400":
+          description: Неверные данные
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Только администратор или защищённый аккаунт
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /channels:
+    get:
+      operationId: listChannelLinks
+      tags: [auth]
+      summary: Привязанные аккаунты мессенджеров
+      responses:
+        "200":
+          description: Список привязок
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChannelLink"
+        "403": { description: Только администратор }
+  /channels/claim:
+    post:
+      operationId: claimChannelLink
+      tags: [auth]
+      summary: Привязать мессенджер к текущей учётной записи по коду
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClaimChannelInput"
+      responses:
+        "200":
+          description: Аккаунт привязан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClaimChannelResult"
+        "400":
+          description: Код не найден, истёк или уже использован
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /channels/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: number }
+    delete:
+      operationId: unlinkChannel
+      tags: [auth]
+      summary: Отозвать доступ мессенджера
+      responses:
+        "204": { description: Привязка удалена }
+        "403": { description: Только администратор }
+  /users/{id}/devices:
+    parameters:
+      - $ref: "#/components/parameters/UserId"
+    delete:
+      operationId: revokeUserDevices
+      tags: [auth]
+      summary: Отозвать все доверенные устройства и сессии сотрудника
+      responses:
+        "204": { description: Доступ отозван }
+        "403":
+          description: Только администратор или защищённый аккаунт
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /dashboard:
+    get:
+      operationId: getDashboard
+      tags: [dashboard]
+      responses:
+        "200":
+          description: Сводка склада
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dashboard"
+  /products:
+    get:
+      operationId: listProducts
+      tags: [products]
+      parameters:
+        - in: query
+          name: search
+          description: Поиск по названию, псевдониму, сорту и цвету
+          schema: { type: string }
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: lowStock
+          schema: { type: boolean }
+        - in: query
+          name: includeArchived
+          description: Показать вместе с товарами из архива
+          schema: { type: boolean, default: false }
+        - in: query
+          name: archived
+          description: Показать только товары из архива
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: Список товаров
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Product"
+    post:
+      operationId: createProduct
+      tags: [products]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Товар создан
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /products/{id}:
+    patch:
+      operationId: updateProduct
+      tags: [products]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Товар обновлен
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Товар не найден
+    delete:
+      operationId: deleteProduct
+      tags: [products]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "204":
+          description: Товар удалён
+        "400":
+          description: Товар нельзя удалить
+        "404":
+          description: Товар не найден
+  /products/{id}/restore:
+    post:
+      operationId: restoreProduct
+      tags: [products]
+      summary: Вернуть товар из архива
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Товар возвращён из архива
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "404":
+          description: Товар не найден
+  /products/{id}/receipts:
+    get:
+      operationId: listProductReceipts
+      tags: [products, movements]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: История приходов товара
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+        "404":
+          description: Товар не найден
+  /movements/{id}/receipt:
+    patch:
+      operationId: updateReceipt
+      tags: [movements]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptUpdate"
+      responses:
+        "200":
+          description: Приход обновлён
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          description: Приход нельзя безопасно изменить
+        "404":
+          description: Приход не найден
+  /movements:
+    get:
+      operationId: listMovements
+      tags: [movements]
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: number, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: offset
+          description: Сколько записей пропустить — для листания истории
+          schema: { type: number, minimum: 0, default: 0 }
+        - in: query
+          name: type
+          description: Вид операции
+          schema: { type: string, enum: [receipt, expense, writeoff, production_input] }
+        - in: query
+          name: search
+          description: Поиск по названию товара и комментарию
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: sort
+          description: Поле сортировки
+          schema:
+            type: string
+            enum: [date, type, product, quantity, reason]
+            default: date
+        - in: query
+          name: direction
+          description: Направление сортировки
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        "200":
+          description: История операций
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Movement"
+    post:
+      operationId: createMovement
+      tags: [movements]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MovementInput"
+      responses:
+        "201":
+          description: Операция проведена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Movement"
+        "400":
+          description: Недостаточный остаток или неверные данные
+  /analytics/movements:
+    get:
+      operationId: getMovementAnalytics
+      tags: [analytics]
+      parameters:
+        - in: query
+          name: from
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          schema: { type: string, format: date }
+        - in: query
+          name: productId
+          schema: { type: number }
+        - in: query
+          name: category
+          schema: { type: string }
+        - in: query
+          name: type
+          schema: { type: string, enum: [receipt, expense, writeoff, transfer, production_input, production_output] }
+        - in: query
+          name: breakdown
+          description: По чему разбирать выбранный вид операций
+          schema: { type: string, enum: [category, product], default: category }
+      responses:
+        "200":
+          description: Аналитика движений
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementAnalytics"
+  /bouquets:
+    get:
+      operationId: listBouquets
+      tags: [bouquets]
+      responses:
+        "200":
+          description: Готовые товары с составами
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Bouquet" }
+    post:
+      operationId: createBouquet
+      tags: [bouquets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BouquetInput" }
+      responses:
+        "201":
+          description: Букет создан
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bouquet" }
+  /bouquets/{id}:
+    patch:
+      operationId: updateBouquet
+      tags: [bouquets]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/BouquetInput" }
+      responses:
+        "200":
+          description: Букет обновлен
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Bouquet" }
+        "404": { description: Букет не найден }
+  /bouquets/{id}/produce:
+    post:
+      operationId: produceBouquet
+      tags: [bouquets]
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ProductionInput" }
+      responses:
+        "200":
+          description: Букеты собраны
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ProductionResult" }
+        "400": { description: Не хватает компонентов }
+  /bouquet-categories:
+    get:
+      operationId: listBouquetCategories
+      summary: Категории букетов, которые уже есть
+      description: Подсказка для формы — категорию можно выбрать из списка или ввести новую.
+      tags: [bouquets]
+      responses:
+        "200":
+          description: Категории букетов по алфавиту
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { type: string }
+  /setup/{token}:
+    get:
+      operationId: inspectSetupLink
+      summary: Проверить ссылку первого входа
+      description: "Открыт без входа: по ссылке владелец магазина задаёт себе логин и пароль."
+      tags: [setup]
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Состояние ссылки
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupLinkState" }
+  /setup:
+    post:
+      operationId: completeSetup
+      summary: Завершить первый вход
+      description: Создаёт администратора магазина и гасит ссылку.
+      tags: [setup]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/SetupBody" }
+      responses:
+        "201":
+          description: Администратор создан
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SetupResult" }
+        "400": { description: "Ссылка негодна, истекла, использована или логин занят" }
+  /settings/ai:
+    get:
+      operationId: getAiSettings
+      summary: Настройки AI-провайдера
+      description: Только для администратора. Ключ наружу не отдаётся — видно лишь «задан» и последние символы.
+      tags: [settings]
+      responses:
+        "200":
+          description: Настройки и то, откуда взяты действующие значения
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiSettings" }
+    put:
+      operationId: updateAiSettings
+      summary: Сохранить настройки AI-провайдера
+      tags: [settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/AiSettingsInput" }
+      responses:
+        "200":
+          description: Сохранённые настройки
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiSettings" }
+        "400": { description: Неверный адрес или модель }
+  /settings/ai/test:
+    post:
+      operationId: testAiConnection
+      summary: Проверить связь с провайдером
+      description: Делает настоящий запрос к провайдеру и возвращает его ответ или текст ошибки.
+      tags: [settings]
+      responses:
+        "200":
+          description: Результат проверки; ошибка провайдера приходит в `answer`, а не статусом
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AiConnectionCheck" }
+  /production-batches:
+    get:
+      operationId: listProductionBatches
+      summary: История сборок (фактический состав и цена каждой сборки)
+      tags: [bouquets]
+      parameters:
+        - in: query
+          name: bouquetId
+          required: true
+          description: Букет, чьи сборки нужно показать
+          schema: { type: number }
+        - in: query
+          name: limit
+          description: Сколько последних сборок вернуть (по умолчанию 20)
+          schema: { type: number, minimum: 1, maximum: 50 }
+      responses:
+        "200":
+          description: Сборки, новые сверху
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProductionBatch" }
+        "404": { description: Букет не найден }
+  /production-batches/stock:
+    get:
+      operationId: listBouquetStockBatches
+      summary: Сборки букета, которые ещё лежат на складе
+      description: Продажа или списание букета может быть привязана к конкретной сборке.
+      tags: [bouquets]
+      parameters:
+        - in: query
+          name: bouquetId
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Сборки с остатком, новые сверху
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ProductionBatchStock" }
+        "404": { description: Букет не найден }
+  /assistant/command:
+    post:
+      operationId: runAssistantCommand
+      tags: [assistant]
+      summary: Разобрать команду, составную — показать разбор до проведения
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantInput"
+      responses:
+        "200":
+          description: Ответ помощника с разбором команды
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+  /assistant/command/apply:
+    post:
+      operationId: applyAssistantCommandPlan
+      tags: [assistant, movements]
+      summary: Провести подтверждённый разбор команды одним набором
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantPlanInput"
+      responses:
+        "200":
+          description: Операции набора проведены
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantApplyResponse"
+        "400": { description: План не прошёл проверку }
+  /movements/{id}/undo:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      operationId: undoMovement
+      tags: [movements]
+      summary: Отменить операцию склада
+      responses:
+        "200":
+          description: Операция отменена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MovementUndoResult"
+        "400":
+          description: Отменить нельзя — уже отменена, использована партия или были движения позже
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Операция не найдена
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+  /assistant/operations/{movementId}/undo:
+    post:
+      operationId: undoAssistantOperation
+      tags: [assistant, movements]
+      parameters:
+        - $ref: "#/components/parameters/MovementId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantUndoInput"
+      responses:
+        "200":
+          description: Операция отменена корректирующей записью
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "400": { description: Операцию нельзя отменить }
+        "404": { description: Операция ассистента не найдена }
+        "409": { description: Операция уже отменена }
+  /assistant/batches/{batchId}/undo:
+    post:
+      operationId: undoAssistantBatch
+      tags: [assistant, movements]
+      summary: Отменить все ещё не отменённые операции одного набора
+      parameters:
+        - $ref: "#/components/parameters/AssistantBatchId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssistantBatchUndoInput"
+      responses:
+        "200":
+          description: Операции набора отменены корректирующими записями
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantResponse"
+        "400": { description: Набор нельзя отменить }
+        "404": { description: Набор операций ассистента не найден }
+        "409": { description: Все операции набора уже отменены }
+  /assistant/invoice/recognize:
+    post:
+      operationId: recognizeInvoice
+      tags: [assistant]
+      summary: Распознать фото накладной и сопоставить позиции с каталогом
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceRecognizeInput"
+      responses:
+        "200":
+          description: Черновик прихода, требующий подтверждения
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceRecognition"
+        "400": { description: Изображение не принято или документ не распознан }
+  /assistant/invoice/apply:
+    post:
+      operationId: applyInvoice
+      tags: [assistant, movements]
+      summary: Провести приход по подтверждённому черновику накладной
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvoiceApplyInput"
+      responses:
+        "200":
+          description: Приходы созданы
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceApplyResult"
+        "400": { description: Черновик не прошёл проверку }
+  /assistant/conversations/{conversationId}:
+    get:
+      operationId: getAssistantConversation
+      tags: [assistant]
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "200":
+          description: История диалога
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AssistantConversation"
+    delete:
+      operationId: clearAssistantConversation
+      tags: [assistant]
+      parameters:
+        - $ref: "#/components/parameters/ConversationId"
+      responses:
+        "204":
+          description: История диалога удалена
+components:
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: { type: number }
+    ConversationId:
+      in: path
+      name: conversationId
+      required: true
+      schema: { type: string, minLength: 8, maxLength: 100 }
+    MovementId:
+      in: path
+      name: movementId
+      required: true
+      schema: { type: number }
+    AssistantBatchId:
+      in: path
+      name: batchId
+      required: true
+      description: Идентификатор набора операций одной команды ассистента
+      schema: { type: string, minLength: 8, maxLength: 100 }
+    UserId:
+      in: path
+      name: id
+      required: true
+      schema: { type: number }
+  schemas:
+    HealthStatus:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string }
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    LoginInput:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 1, maxLength: 60 }
+        password: { type: string, minLength: 1, maxLength: 200 }
+    AuthUser:
+      type: object
+      required: [id, username, displayName, role]
+      properties:
+        id: { type: number }
+        username: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [admin, staff] }
+    ChannelLink:
+      type: object
+      required: [id, userId, channel, externalId, isActive]
+      properties:
+        id: { type: number }
+        userId: { type: number }
+        userDisplayName: { type: string }
+        channel: { type: string, enum: [telegram, max] }
+        externalId: { type: string }
+        displayName: { type: ["string", "null"] }
+        username: { type: ["string", "null"] }
+        linkedAt: { type: string, format: date-time }
+        lastSeenAt: { type: ["string", "null"], format: date-time }
+        isActive: { type: boolean }
+    ClaimChannelInput:
+      type: object
+      required: [code]
+      properties:
+        code: { type: string, minLength: 4, maxLength: 20 }
+    ClaimChannelResult:
+      type: object
+      required: [channel, userDisplayName]
+      properties:
+        channel: { type: string, enum: [telegram, max] }
+        userDisplayName: { type: string }
+    AuthSession:
+      type: object
+      required: [user, expiresAt, viaDevice]
+      properties:
+        user: { $ref: "#/components/schemas/AuthUser" }
+        expiresAt: { type: string, format: date-time }
+        viaDevice: { type: boolean, description: Сессия открыта на доверенном устройстве }
+    DeviceUser:
+      type: object
+      required: [id, displayName, hasPin]
+      properties:
+        id: { type: number }
+        displayName: { type: string }
+        hasPin: { type: boolean, description: Задан ли PIN для входа на устройстве }
+    TrustedDevice:
+      type: object
+      required: [id, name, expiresAt, users]
+      properties:
+        id: { type: number }
+        name: { type: string }
+        expiresAt: { type: string, format: date-time }
+        users:
+          type: array
+          items: { $ref: "#/components/schemas/DeviceUser" }
+    TrustedDeviceRecord:
+      type: object
+      required: [id, name, expiresAt]
+      properties:
+        id: { type: number }
+        name: { type: string }
+        expiresAt: { type: string, format: date-time }
+    TrustDeviceInput:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 60 }
+    PinLoginInput:
+      type: object
+      required: [userId, pin]
+      properties:
+        userId: { type: number }
+        pin: { type: string, minLength: 4, maxLength: 8 }
+    ManagedUser:
+      type: object
+      required: [id, username, displayName, role, isActive, isProtected, hasPin, deviceCount, sessionCount]
+      properties:
+        id: { type: number }
+        username: { type: string }
+        displayName: { type: string }
+        role: { type: string, enum: [admin, staff] }
+        isActive: { type: boolean }
+        isProtected: { type: boolean, description: Аккаунт из окружения, его нельзя отключить }
+        hasPin: { type: boolean }
+        deviceCount: { type: number }
+        sessionCount: { type: number }
+        lastLoginAt: { type: ["string", "null"], format: date-time }
+        createdAt: { type: string, format: date-time }
+    CreateUserInput:
+      type: object
+      required: [username, displayName, password, role]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 60 }
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        role: { type: string, enum: [admin, staff] }
+    UpdateUserInput:
+      type: object
+      minProperties: 1
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 80 }
+        role: { type: string, enum: [admin, staff] }
+        isActive: { type: boolean }
+        password: { type: string, minLength: 8, maxLength: 200 }
+        pin: { type: ["string", "null"], description: Новый PIN или null, чтобы снять }
+    Product:
+      type: object
+      required: [id, name, aliases, category, productType, unit, currentStock, minimumStock, purchasePrice, averagePrice, markupPercent, salePrice, shelfLifeDays, createdAt]
+      properties:
+        id: { type: number }
+        archivedAt: { type: ["string", "null"], format: date-time, description: Дата переноса в архив }
+        name: { type: string }
+        aliases:
+          type: array
+          items: { type: string }
+        category: { type: string }
+        productType: { type: string, enum: [stock, bouquet] }
+        variety: { type: ["string", "null"] }
+        color: { type: ["string", "null"] }
+        originCountry: { type: ["string", "null"] }
+        supplier: { type: ["string", "null"] }
+        unit: { type: string }
+        currentStock: { type: number }
+        minimumStock: { type: number }
+        purchasePrice: { type: number }
+        averagePrice: { type: number }
+        markupPercent: { type: number }
+        salePrice: { type: number }
+        shelfLifeDays: { type: number }
+        lastReceiptDate: { type: ["string", "null"], format: date }
+        createdAt: { type: string, format: date-time }
+    ProductInput:
+      type: object
+      required: [name, category, unit, minimumStock, shelfLifeDays]
+      properties:
+        name: { type: string, minLength: 1 }
+        aliases:
+          type: array
+          items: { type: string, minLength: 1 }
+          maxItems: 20
+        category: { type: string }
+        variety: { type: string }
+        color: { type: string }
+        originCountry: { type: string }
+        supplier: { type: string }
+        unit: { type: string, default: шт }
+        minimumStock: { type: number, minimum: 0 }
+        purchasePrice: { type: number, minimum: 0, default: 0 }
+        markupPercent: { type: number, minimum: 0, default: 0 }
+        shelfLifeDays: { type: number, minimum: 0 }
+    ProductUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        aliases:
+          type: array
+          items: { type: string, minLength: 1 }
+          maxItems: 20
+        category: { type: string }
+        variety: { type: ["string", "null"] }
+        color: { type: ["string", "null"] }
+        originCountry: { type: ["string", "null"] }
+        supplier: { type: ["string", "null"] }
+        unit: { type: string }
+        minimumStock: { type: number, minimum: 0 }
+        shelfLifeDays: { type: number, minimum: 0 }
+    Movement:
+      type: object
+      required: [id, productId, productName, type, quantity, unit, unitPrice, totalCost, reason, batchAllocations, createdAt]
+      properties:
+        id: { type: number }
+        productId: { type: number }
+        productName: { type: string }
+        type: { type: string, enum: [receipt, expense, writeoff, transfer, production_input, production_output] }
+        quantity: { type: number }
+        unit: { type: string, description: Единица измерения товара; нужна для понятного уведомления }
+        remainingQuantity: { type: ["number", "null"] }
+        unitPrice: { type: number }
+        saleUnitPrice: { type: ["number", "null"], minimum: 0 }
+        totalCost: { type: number, minimum: 0 }
+        reason: { type: string }
+        excludeFromStats:
+          type: boolean
+          default: false
+          description: Не учитывать операцию в статистике (ошибочно добавленный товар, пересорт)
+        orderNumber: { type: ["string", "null"] }
+        productionBatchId:
+          type: ["string", "null"]
+          description: Партия сборки, к которой относится операция
+        assistantBatchId:
+          type: ["string", "null"]
+          description: Идентификатор набора операций одной команды ассистента
+        batchArrivalDate: { type: ["string", "null"], format: date }
+        cutDate: { type: ["string", "null"], format: date }
+        expiresAt: { type: ["string", "null"], format: date }
+        reversalOfMovementId: { type: ["number", "null"] }
+        createdBy: { type: ["number", "null"], description: Кто провёл операцию }
+        createdByName: { type: ["string", "null"], description: Имя автора операции }
+        # Наценка позиции на момент операции, а не партии: интерфейс показывает
+        # её в карточке прихода и позволяет править.
+        markupPercent: { type: "number" }
+        previousMarkupPercent: { type: ["number", "null"], description: Наценка до операции }
+        batchAllocations:
+          type: array
+          items: { $ref: "#/components/schemas/MovementBatchAllocation" }
+        createdAt: { type: string, format: date-time }
+    MovementBatchAllocation:
+      type: object
+      required: [receiptMovementId, quantity, unitPrice, lineCost]
+      properties:
+        receiptMovementId: { type: number }
+        quantity: { type: number }
+        unitPrice: { type: number, minimum: 0 }
+        lineCost: { type: number, minimum: 0 }
+        batchArrivalDate: { type: ["string", "null"], format: date }
+        cutDate: { type: ["string", "null"], format: date }
+        expiresAt: { type: ["string", "null"], format: date }
+        supplier: { type: ["string", "null"] }
+    MovementInput:
+      type: object
+      required: [productId, type, quantity]
+      properties:
+        productId: { type: number }
+        type: { type: string, enum: [receipt, expense, writeoff, transfer, production_input] }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unitPrice: { type: number, minimum: 0 }
+        saleUnitPrice: { type: number, minimum: 0 }
+        markupPercent: { type: number, minimum: 0 }
+        # Списание из конкретного прихода. Если не указан, партии расходуются
+        # по порядку поступления — сначала самые старые.
+        receiptMovementId: { type: ["number", "null"], description: Из какого прихода списать }
+        productionBatchId:
+          type: ["string", "null"]
+          description: Из какой сборки букета списать; без неё расход идёт по порядку сборки
+        reason: { type: string, default: Операция склада }
+        # Списание или приход, который не должен попасть в статистику: остаток
+        # меняется, история показывает операцию, отчёты её не считают. Без
+        # `default`: orval делает поле с default обязательным на входе, и старые
+        # вызовы (накладные, ассистент) перестают собираться. Значение по
+        # умолчанию подставляет база.
+        excludeFromStats:
+          type: boolean
+          description: Не учитывать операцию в статистике
+        orderNumber: { type: string }
+        batchArrivalDate: { type: string, format: date }
+        cutDate: { type: string, format: date }
+    ReceiptUpdate:
+      type: object
+      minProperties: 1
+      properties:
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unitPrice: { type: number, minimum: 0 }
+        # Наценка для позиции целиком, а не для отдельной партии: цена продажи
+        # считается от средней закупочной цены товара.
+        markupPercent: { type: number, minimum: 0, maximum: 1000 }
+        reason: { type: string }
+        batchArrivalDate: { type: string, format: date }
+        expiresAt: { type: ["string", "null"], format: date }
+    Dashboard:
+      type: object
+      required: [totalProducts, totalUnits, inventoryValue, lowStockCount, expiringCount, lowStock, expiring, recentMovements]
+      properties:
+        totalProducts: { type: number }
+        totalUnits: { type: number }
+        inventoryValue: { type: number }
+        lowStockCount: { type: number }
+        expiringCount: { type: number }
+        lowStock:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        expiring:
+          type: array
+          items: { $ref: "#/components/schemas/ExpiringBatch" }
+        recentMovements:
+          type: array
+          items: { $ref: "#/components/schemas/Movement" }
+    ExpiringBatch:
+      type: object
+      required: [productId, productName, quantity, expiresAt, daysLeft]
+      properties:
+        productId: { type: number }
+        productName: { type: string }
+        quantity: { type: number }
+        expiresAt: { type: string, format: date }
+        daysLeft: { type: number }
+    BouquetComponent:
+      type: object
+      required: [productId, productName, unit, quantity, unitCost]
+      properties:
+        productId: { type: number }
+        productName: { type: string }
+        unit: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+    BouquetComponentInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: number }
+        quantity: { type: number, exclusiveMinimum: 0 }
+    ProductionIngredientInput:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: number }
+        quantity: { type: number, exclusiveMinimum: 0 }
+    ProductionIngredient:
+      type: object
+      required: [productId, productName, unit, quantity, unitCost]
+      properties:
+        productId: { type: number }
+        productName: { type: string }
+        unit: { type: string }
+        quantity: { type: number }
+        unitCost: { type: number }
+        lineCost: { type: number, description: Стоимость позиции в этой сборке }
+    ProductionBatch:
+      type: object
+      required: [id, bouquetProductId, bouquetName, quantity, calculatedCost, salePrice, ingredients, createdAt, remainingQuantity]
+      properties:
+        id: { type: string }
+        bouquetProductId: { type: number }
+        bouquetName: { type: string }
+        quantity: { type: number, description: Сколько букетов собрали в этой партии }
+        calculatedCost: { type: number, description: Себестоимость одной штуки по факту сборки }
+        salePrice: { type: number, description: Фактическая цена продажи одной штуки }
+        ingredients:
+          type: array
+          items: { $ref: "#/components/schemas/ProductionIngredient" }
+        createdAt: { type: string, format: date-time }
+        createdByName: { type: ["string", "null"] }
+        remainingQuantity:
+          type: number
+          description: Сколько букетов из этой сборки ещё на складе
+    ProductionBatchStock:
+      allOf:
+        - $ref: "#/components/schemas/ProductionBatch"
+        - type: object
+          required: [movementsId]
+          properties:
+            movementsId:
+              type: number
+              description: Операция выпуска — по ней продажа связывается с конкретной сборкой
+    Bouquet:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          required: [components, calculatedCost]
+          properties:
+            components:
+              type: array
+              items: { $ref: "#/components/schemas/BouquetComponent" }
+            calculatedCost: { type: number }
+            lastProduction:
+              description: Последняя сборка букета
+              oneOf:
+                - $ref: "#/components/schemas/ProductionBatch"
+                - type: "null"
+    BouquetInput:
+      type: object
+      required: [name, markupPercent, components]
+      properties:
+        name: { type: string, minLength: 1 }
+        # Категория букета — своя, отдельная от склада: по ней букеты ищут и
+        # сортируют («Свадебные», «На 8 марта»).
+        category: { type: string, minLength: 1, description: Категория букета }
+        markupPercent: { type: number, minimum: 0 }
+        components:
+          type: array
+          minItems: 1
+          items: { $ref: "#/components/schemas/BouquetComponentInput" }
+    ProductionInput:
+      type: object
+      required: [quantity]
+      properties:
+        quantity: { type: number, exclusiveMinimum: 0 }
+        salePrice:
+          type: number
+          minimum: 0
+          description: Фактическая цена продажи одной штуки; без неё берётся цена рецепта
+        ingredients:
+          type: array
+          minItems: 1
+          description: Фактический состав сборки; без него берётся состав рецепта
+          items: { $ref: "#/components/schemas/ProductionIngredientInput" }
+    ProductionResult:
+      type: object
+      required: [bouquet, quantity, consumed, batch]
+      properties:
+        bouquet: { $ref: "#/components/schemas/Bouquet" }
+        quantity: { type: number }
+        consumed:
+          type: array
+          items: { $ref: "#/components/schemas/BouquetComponent" }
+        batch: { $ref: "#/components/schemas/ProductionBatch" }
+    MovementTypeSummary:
+      type: object
+      required: [type, quantity, value, operations]
+      properties:
+        type: { type: string }
+        quantity: { type: number }
+        value: { type: number }
+        operations: { type: number }
+    TopMovingProduct:
+      type: object
+      required: [productId, productName, category, quantity, soldQuantity, revenue, value]
+      properties:
+        productId: { type: number }
+        productName: { type: string }
+        category: { type: string }
+        quantity: { type: number, description: Количество по всем видам операций }
+        soldQuantity: { type: number, description: Сколько продали за период }
+        revenue: { type: number, description: Выручка от продаж этого товара }
+        value: { type: number, description: Стоимость операций по учётным ценам }
+    AnalyticsBreakdownRow:
+      type: object
+      required: [name, quantity, operations, value]
+      properties:
+        name: { type: string, description: Товар или категория }
+        quantity: { type: number }
+        operations: { type: number }
+        value: { type: number, description: Стоимость операций по учётным ценам }
+        revenue:
+          type: ["number", "null"]
+          description: Выручка; только у продаж
+        cost:
+          type: ["number", "null"]
+          description: Себестоимость по списанным партиям; только у продаж и списаний
+        profit:
+          type: ["number", "null"]
+          description: Выручка минус себестоимость; только у продаж
+    AnalyticsBreakdown:
+      type: object
+      required: [dimension, type, rows]
+      properties:
+        dimension: { type: string, enum: [category, product] }
+        type: { type: string, description: Вид операций, по которым построен разбор }
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/AnalyticsBreakdownRow" }
+    AiSettingsKeySuffix:
+      type: ["string", "null"]
+      description: Последние символы действующего ключа; сам ключ наружу не отдаётся
+    SetupLinkState:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [valid, unknown, used, expired]
+          description: Годна ли ссылка, и если нет — почему
+        shopName: { type: ["string", "null"], description: Название магазина из ссылки }
+    SetupBody:
+      type: object
+      required: [token, username, password]
+      properties:
+        token: { type: string, description: Токен из ссылки }
+        username: { type: string, minLength: 3, description: Логин администратора магазина }
+        displayName: { type: ["string", "null"], description: Как показывать администратора }
+        password: { type: string, minLength: 8, description: Пароль, который задаёт владелец магазина }
+    SetupResult:
+      type: object
+      required: [username, shopName]
+      properties:
+        username: { type: string }
+        shopName: { type: string }
+    AiSettings:
+      type: object
+      required: [source, shopKeySet, shopBaseUrl, shopModel, platformConfigured, platformKeySet, platformModel, platformBaseUrl, apiKeySet, keySuffix, modelInUse, updatedAt]
+      properties:
+        source:
+          type: string
+          enum: [shop, platform, none]
+          description: Чей провайдер действует сейчас
+        # Свой провайдер магазина: владелец вводит его сам и может менять.
+        shopBaseUrl: { type: ["string", "null"], description: Адрес API магазина; пусто — платформенный }
+        shopModel: { type: ["string", "null"], description: Модель магазина }
+        shopKeySet: { type: boolean, description: Ключ магазина сохранён }
+        # Платформенный провайдер: задан владельцем сервиса, магазину недоступен.
+        platformConfigured: { type: boolean, description: Платформенный провайдер настроен }
+        platformModel: { type: ["string", "null"], description: Модель платформы }
+        platformBaseUrl: { type: ["string", "null"], description: Адрес API платформы }
+        platformKeySet: { type: boolean, description: Ключ платформы задан на сервере }
+        modelInUse: { type: ["string", "null"], description: Модель, которая действует сейчас }
+        apiKeySet: { type: boolean, description: Ключ магазина сохранён }
+        keySuffix: { $ref: "#/components/schemas/AiSettingsKeySuffix" }
+        updatedAt: { type: ["string", "null"], format: date-time }
+        updatedByName: { type: ["string", "null"] }
+    AiSettingsInput:
+      type: object
+      required: [provider]
+      properties:
+        # Какой провайдер использует магазин: общий провайдер сервиса или свой.
+        provider:
+          type: string
+          enum: [platform, shop]
+          description: platform — общий провайдер сервиса; shop — свой ключ магазина
+        baseUrl:
+          type: ["string", "null"]
+          description: Адрес API магазина; обязателен при provider=shop
+        model:
+          type: ["string", "null"]
+          description: Модель магазина
+        apiKey:
+          type: ["string", "null"]
+          description: Новый ключ магазина; пусто — оставить сохранённый
+    AiConnectionCheck:
+      type: object
+      required: [ok, answer]
+      properties:
+        ok: { type: boolean }
+        answer: { type: string, description: Ответ провайдера или текст ошибки }
+        baseUrl: { type: ["string", "null"] }
+        model: { type: ["string", "null"] }
+    AnalyticsComparison:
+      type: object
+      description: Те же итоги за период такой же длины, который шёл перед выбранным
+      properties:
+        from: { type: string, description: Начало прошлого периода, день магазина }
+        to: { type: string, description: Конец прошлого периода, день магазина }
+        totalOperations: { type: number }
+        totalQuantity: { type: number }
+        totalRevenue: { type: number }
+        totalCost: { type: number }
+        grossProfit: { type: number }
+    MovementAnalytics:
+      type: object
+      required: [totalOperations, totalQuantity, totalValue, totalRevenue, totalCost, grossProfit, byType, topProducts, timeline]
+      properties:
+        totalOperations: { type: number }
+        totalQuantity: { type: number }
+        totalValue: { type: number }
+        totalRevenue: { type: number }
+        totalCost: { type: number }
+        grossProfit: { type: number }
+        previous:
+          description: Прошлый период для сравнения; нет, если период не задан
+          oneOf:
+            - $ref: "#/components/schemas/AnalyticsComparison"
+            - type: "null"
+        byType:
+          type: array
+          items: { $ref: "#/components/schemas/MovementTypeSummary" }
+        topProducts:
+          type: array
+          items: { $ref: "#/components/schemas/TopMovingProduct" }
+        breakdown:
+          description: Разбор по категориям или товарам для выбранного вида операций
+          oneOf:
+            - $ref: "#/components/schemas/AnalyticsBreakdown"
+            - type: "null"
+        timeline:
+          type: array
+          items:
+            type: object
+            required: [date, quantity, value]
+            properties:
+              # Дата без времени. С `format: date` она превращалась в Date и
+              # ответ приходил как «2026-09-30T00:00:00.000Z», а график
+              # подписывался сдвинутой датой.
+              date: { type: string, description: День магазина в виде 2026-09-30 }
+              quantity: { type: number }
+              value: { type: number }
+              # Разбивка по видам операций: сумма «всего» смешивает продажи,
+              # приходы и списания, поэтому по ней нельзя судить о деньгах.
+              soldQuantity: { type: number, description: Продано за день }
+              soldValue: { type: number, description: Выручка за день }
+              receiptQuantity: { type: number, description: Принято за день }
+              receiptValue: { type: number, description: Принято на сумму }
+              writeoffQuantity: { type: number, description: Списано за день }
+              writeoffValue: { type: number, description: Списано на сумму }
+    AssistantInput:
+      type: object
+      required: [message, conversationId]
+      properties:
+        message: { type: string, minLength: 1 }
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+    MovementUndoResult:
+      type: object
+      required: [movementId, reversalId, productName, quantity, answer]
+      properties:
+        movementId: { type: number, description: Отменённая операция }
+        reversalId: { type: number, description: Компенсирующая операция }
+        productName: { type: string }
+        quantity: { type: number }
+        answer: { type: string }
+    AssistantUndoInput:
+      type: object
+      required: [conversationId]
+      properties:
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+    AssistantBatchUndoInput:
+      type: object
+      description: Диалог, в который записать сообщение об отмене набора
+      properties:
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+    AssistantPlannedOperation:
+      type: object
+      description: Однозначная позиция команды, готовая к проведению
+      required: [index, asked, productId, productName, unit, type, quantity]
+      properties:
+        index: { type: number, description: Номер позиции в команде пользователя }
+        asked: { type: string, description: Название, как его написал пользователь }
+        productId: { type: number }
+        productName: { type: string }
+        unit: { type: string }
+        type: { type: string, enum: [receipt, expense, writeoff, production_input] }
+        quantity: { type: number }
+        unitPrice: { type: number, description: Цена прихода }
+        saleUnitPrice: { type: number, description: Цена продажи }
+        markupPercent: { type: number }
+        reason: { type: string }
+        description: { type: string, description: Человекочитаемое описание операции }
+    AssistantClarificationOption:
+      type: object
+      required: [id, name, unit, stock]
+      properties:
+        id: { type: number }
+        name: { type: string }
+        unit: { type: string }
+        stock: { type: number }
+    AssistantClarification:
+      type: object
+      description: "Спорная позиция команды: товар выбирает пользователь"
+      required: [index, asked, options, quantity, type]
+      properties:
+        index: { type: number, description: Номер позиции в команде пользователя }
+        asked: { type: string }
+        quantity: { type: number }
+        type: { type: string, enum: [receipt, expense, writeoff, production_input] }
+        description: { type: string, description: Текст вопроса с вариантами }
+        message:
+          type: ["string", "null"]
+          description: Пояснение, когда вариантов нет и позиция не распознана
+        selectedProductId:
+          type: ["number", "null"]
+          description: Товар, выбранный пользователем при подтверждении
+        options:
+          type: array
+          description: Варианты товаров; пусто, если позицию не удалось распознать
+          items: { $ref: "#/components/schemas/AssistantClarificationOption" }
+    AssistantPlan:
+      type: object
+      description: Разбор команды до записи в учёт
+      required: [operations, clarifications]
+      properties:
+        operations:
+          type: array
+          items: { $ref: "#/components/schemas/AssistantPlannedOperation" }
+        clarifications:
+          type: array
+          items: { $ref: "#/components/schemas/AssistantClarification" }
+    AssistantPlanInput:
+      type: object
+      required: [conversationId, plan]
+      properties:
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+        plan: { $ref: "#/components/schemas/AssistantPlan" }
+    AssistantAppliedOperation:
+      type: object
+      required: [movementId, productId, productName, quantity, unit, type]
+      properties:
+        movementId: { type: number }
+        productId: { type: number }
+        productName: { type: string }
+        quantity: { type: number }
+        unit: { type: string }
+        type: { type: string, enum: [receipt, expense, writeoff, production_input] }
+        description: { type: string }
+    AssistantResponse:
+      type: object
+      required: [answer, action, operationId, canUndo, suggestions]
+      properties:
+        answer: { type: string }
+        action: { type: string, enum: [answered, receipt_created, receipt_updated, product_updated, stock_adjusted, expense_created, assembly_created, writeoff_created, operation_undone, invoice_receipt_created, plan_preview, batch_undone, unknown] }
+        operationId: { type: ["number", "null"] }
+        canUndo: { type: boolean }
+        suggestions:
+          type: array
+          items: { type: string }
+        plan:
+          allOf:
+            - $ref: "#/components/schemas/AssistantPlan"
+          description: Разбор команды; пустые списки, если разбирать нечего
+        batchId:
+          type: ["string", "null"]
+          description: Идентификатор набора операций, если он уже проведён
+        applied:
+          type: array
+          description: Проведённые операции; пусто, пока план не подтверждён
+          items: { $ref: "#/components/schemas/AssistantAppliedOperation" }
+        appliedCount: { type: number }
+        errors:
+          type: array
+          description: Позиции, которые не удалось провести
+          items: { type: string }
+    AssistantApplyResponse:
+      type: object
+      required: [answer, action, batchId, appliedCount, movements, errors, canUndo, suggestions]
+      properties:
+        answer: { type: string }
+        action: { type: string }
+        batchId: { type: string, description: Идентификатор набора для отмены целиком }
+        appliedCount: { type: number }
+        movements:
+          type: array
+          items: { $ref: "#/components/schemas/AssistantAppliedOperation" }
+        errors:
+          type: array
+          items: { type: string }
+        canUndo: { type: boolean }
+        suggestions:
+          type: array
+          items: { type: string }
+    AssistantMessage:
+      type: object
+      required: [id, role, content, operationId, canUndo, createdAt]
+      properties:
+        id: { type: number }
+        role: { type: string, enum: [user, assistant] }
+        content: { type: string }
+        action: { type: ["string", "null"] }
+        operationId: { type: ["number", "null"] }
+        canUndo: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        imageThumbnail:
+          type: ["string", "null"]
+          maxLength: 400000
+          description: Уменьшенное превью загруженного фото накладной (data-URL)
+        invoiceDraft:
+          allOf:
+            - $ref: "#/components/schemas/InvoiceRecognition"
+          description: Черновик накладной, приложенный к сообщению ассистента
+        invoiceReview:
+          type: object
+          description: Состояние проверки черновика пользователем
+          required: [status]
+          properties:
+            status: { type: string, enum: [pending, applied] }
+            appliedCount: { type: ["number", "null"] }
+    InvoiceRecognizeInput:
+      type: object
+      required: [conversationId, imageDataUrl]
+      properties:
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+        comment:
+          type: string
+          maxLength: 500
+          description: Дополнительные указания пользователя к распознаванию
+        imageDataUrl:
+          type: string
+          maxLength: 30000000
+          pattern: "^data:image/(jpeg|png|gif|webp);base64,"
+          description: Фото накладной как data-URL; формат определяется по содержимому
+        thumbnailDataUrl:
+          type: ["string", "null"]
+          maxLength: 400000
+          description: Уменьшенное превью для истории диалога; на распознавание не влияет
+    InvoiceDraftItem:
+      type: object
+      required: [rawName, quantity, unitPrice, matchStatus, recommended]
+      properties:
+        rawName: { type: string, description: Название позиции, как напечатано в документе }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        unitPrice: { type: number, minimum: 0 }
+        unit: { type: ["string", "null"] }
+        productId: { type: ["number", "null"], description: Товар каталога, если сопоставление однозначно }
+        productName: { type: ["string", "null"] }
+        matchStatus:
+          type: string
+          enum: [matched, unknown, ambiguous]
+          description: matched — найден товар, unknown — не найден, ambiguous — подходит несколько
+        candidates:
+          type: array
+          description: Варианты каталога при неоднозначном сопоставлении
+          items:
+            type: object
+            required: [productId, productName]
+            properties:
+              productId: { type: number }
+              productName: { type: string }
+        recommended: { type: boolean, description: Позицию можно провести без правок }
+        issues:
+          type: array
+          description: Причины, по которым позиция требует внимания пользователя
+          items: { type: string }
+        suggestedName:
+          type: string
+          description: Очищенное от сорта и размера название — заготовка для нового товара
+        suggestedAliases:
+          type: array
+          description: Дополнительные варианты названия, встречавшиеся в документе
+          items: { type: string }
+        suggestedCategory: { type: ["string", "null"], description: Категория, угаданная по названию }
+        suggestedUnit: { type: string, description: Единица измерения из документа или по категории }
+        suggestedMarkupPercent: { type: number, description: Наценка, характерная для этой категории }
+        suggestedShelfLifeDays: { type: number, description: Срок годности, характерный для этой категории }
+    InvoiceNewProduct:
+      type: object
+      description: Товар, создаваемый прямо из строки накладной
+      required: [name, category, unit]
+      properties:
+        name: { type: string, minLength: 1 }
+        aliases:
+          type: array
+          items: { type: string, minLength: 1 }
+          maxItems: 20
+        category: { type: string }
+        variety: { type: string }
+        color: { type: string }
+        originCountry: { type: string }
+        supplier: { type: string }
+        unit: { type: string }
+        minimumStock: { type: number, minimum: 0 }
+        markupPercent: { type: number, minimum: 0 }
+        shelfLifeDays: { type: number, minimum: 0 }
+    InvoiceRecognition:
+      type: object
+      required: [supplierName, invoiceDate, items, recognized, catalogLines]
+      properties:
+        supplierName: { type: ["string", "null"] }
+        invoiceNumber: { type: ["string", "null"] }
+        invoiceDate: { type: ["string", "null"], format: date }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/InvoiceDraftItem" }
+        recognized: { type: number, description: Сколько позиций распознано в документе }
+        catalogLines: { type: number, description: Сколько позиций готово к проведению }
+        warnings:
+          type: array
+          items: { type: string }
+    InvoiceApplyInput:
+      type: object
+      required: [conversationId, items]
+      properties:
+        conversationId: { type: string, minLength: 8, maxLength: 100 }
+        supplierName: { type: ["string", "null"] }
+        invoiceNumber: { type: ["string", "null"] }
+        invoiceDate: { type: ["string", "null"], format: date }
+        items:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [rawName, quantity, unitPrice]
+            properties:
+              productId: { type: ["number", "null"], description: Товар каталога; можно не указывать, если создаётся новый }
+              rawName: { type: string }
+              quantity: { type: number, exclusiveMinimum: 0 }
+              unitPrice: { type: number, minimum: 0 }
+              newProduct:
+                allOf:
+                  - $ref: "#/components/schemas/InvoiceNewProduct"
+                description: Новый товар, который создаётся вместе с приходом
+    InvoiceApplyResult:
+      type: object
+      required: [answer, action, operationIds, canUndo, quantity, totalCost]
+      properties:
+        answer: { type: string }
+        action: { type: string, enum: [invoice_receipt_created] }
+        operationIds:
+          type: array
+          items: { type: number }
+        canUndo: { type: boolean }
+        quantity: { type: number, description: Суммарное количество по всем позициям }
+        totalCost: { type: number, description: Сумма прихода в закупочных ценах }
+        createdProductIds:
+          type: array
+          description: Товары, созданные вместе с приходом
+          items: { type: number }
+    AssistantConversation:
+      type: object
+      required: [id, messages]
+      properties:
+        id: { type: string }
+        messages:
+          type: array
+          items: { $ref: "#/components/schemas/AssistantMessage" }

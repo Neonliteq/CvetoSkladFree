@@ -1,0 +1,15 @@
+[Unit]
+Description=ФлораСклад API
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=florasklad
+WorkingDirectory=/opt/florasklad
+EnvironmentFile=/opt/florasklad/.env
+ExecStart=/usr/bin/node /opt/florasklad/artifacts/api-server/dist/index.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -10,7 +10,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { Undo2 } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import { StatusBadge } from "@/components/status-badge"
 import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/search-input"
 import {
@@ -35,7 +35,9 @@ import {
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils"
 import { getMovementTypeDetails } from "@/lib/movement-types"
 import { CreateMovementDialog } from "./create-movement-dialog"
+import { BulkMovementDialog } from "./bulk-movement-dialog"
 import { MovementsMobileList } from "./movements-mobile-list"
+import { MovementDetails } from "./movement-details"
 import { ChevronDown } from "lucide-react"
 import { SortableTableHead } from "@/components/sortable-table-head"
 import { ResizableTable } from "@/components/ui/resizable-table"
@@ -114,12 +116,15 @@ export default function MovementsPage() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
             История операций
           </h1>
           <p className="text-muted-foreground mt-1">Все движения товаров по складу</p>
         </div>
-        <CreateMovementDialog />
+        <div className="flex flex-wrap gap-2">
+          <BulkMovementDialog />
+          <CreateMovementDialog />
+        </div>
       </div>
 
       {/* Поиск по названию цветов и фильтр по виду операции. Оба уходят на
@@ -164,11 +169,11 @@ export default function MovementsPage() {
       </div>
 
       {isLoading ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           Загрузка...
         </div>
       ) : loaded === 0 ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           {search.trim() || typeFilter !== "all"
             ? "По этим условиям операций не найдено. Измените поиск или вид операции."
             : "История пуста."}
@@ -232,13 +237,12 @@ export default function MovementsPage() {
                               отчёты не попала. Без метки это выглядело бы как
                               потерянные данные. */}
                           {movement.excludeFromStats && (
-                            <Badge
-                              variant="outline"
-                              className="border-amber-500/60 bg-amber-500/10 font-normal text-amber-700 dark:text-amber-400"
+                            <StatusBadge
+                              tone="excluded"
                               title="Операция не учитывается в аналитике"
                             >
                               не в статистике
-                            </Badge>
+                            </StatusBadge>
                           )}
                           <span>
                             {movement.reason || '—'}
@@ -247,18 +251,29 @@ export default function MovementsPage() {
                               : ''}
                           </span>
                         </span>
-                        {movement.batchAllocations.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => setExpandedMovementId(
+                        {/* Раскрыть операцию можно всегда, а не только когда есть
+                            партии: автор, время с секундами, номер накладной и цены
+                            нужны и для простого прихода. */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedMovementId(
                               expandedMovementId === movement.id ? null : movement.id,
-                            )}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-                          >
-                            FIFO: {movement.batchAllocations.length} {movement.batchAllocations.length === 1 ? 'партия' : 'партии'}
-                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expandedMovementId === movement.id ? 'rotate-180' : ''}`} />
-                          </button>
-                        )}
+                            )
+                          }
+                          aria-expanded={expandedMovementId === movement.id}
+                          aria-label={`Подробности операции: ${movement.productName}`}
+                          className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-primary hover:underline"
+                        >
+                          {movement.batchAllocations.length > 0
+                            ? `Партий: ${movement.batchAllocations.length}`
+                            : "Подробнее"}
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 transition-transform ${
+                              expandedMovementId === movement.id ? "rotate-180" : ""
+                            }`}
+                          />
+                        </button>
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
@@ -305,38 +320,12 @@ export default function MovementsPage() {
                         )}
                     </TableCell>
                   </TableRow>
-                  {movement.batchAllocations.length > 0 && expandedMovementId === movement.id && (
-                      <TableRow key={`${movement.id}-allocations`} className="bg-muted/30 hover:bg-muted/30">
+                  {expandedMovementId === movement.id && (
+                      <TableRow key={`${movement.id}-details`} className="bg-muted/30 hover:bg-muted/30">
                         <TableCell />
                         <TableCell colSpan={6} className="py-3">
                           <div className="rounded-lg border bg-background p-3">
-                            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                              Списано по FIFO
-                            </p>
-                            <div className="space-y-2">
-                              {movement.batchAllocations.map((batch) => (
-                                <div key={batch.receiptMovementId} className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                                  <span>
-                                    Поставка №{batch.receiptMovementId}
-                                    {batch.batchArrivalDate ? ` от ${formatDate(batch.batchArrivalDate)}` : ''}
-                                    {batch.supplier ? ` · ${batch.supplier}` : ''}
-                                  </span>
-                                  <span className="text-right">
-                                    <span className="font-semibold">{batch.quantity}</span>
-                                    <span className="ml-2 text-muted-foreground">
-                                      × {formatCurrency(batch.unitPrice)}
-                                    </span>
-                                    <span className="ml-2 font-semibold">
-                                      = {formatCurrency(batch.lineCost)}
-                                    </span>
-                                  </span>
-                                </div>
-                              ))}
-                            </div>
-                            <div className="mt-3 flex items-center justify-between border-t pt-3 text-sm font-semibold">
-                              <span>Фактическая стоимость расхода</span>
-                              <span>{formatCurrency(movement.totalCost)}</span>
-                            </div>
+                            <MovementDetails movement={movement} />
                           </div>
                         </TableCell>
                       </TableRow>

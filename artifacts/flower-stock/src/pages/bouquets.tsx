@@ -109,7 +109,7 @@ export default function BouquetsPage() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
             Готовые букеты
           </h1>
           <p className="text-muted-foreground mt-1">Рецептуры и производство букетов</p>
@@ -146,15 +146,15 @@ export default function BouquetsPage() {
       )}
 
       {isLoading ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           Загрузка...
         </div>
       ) : bouquets?.length === 0 ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           Букеты не найдены.
         </div>
       ) : sortedBouquets.length === 0 ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           В категории «{categoryFilter}» букетов нет. Выберите другую или «Все категории».
         </div>
       ) : (
@@ -183,14 +183,14 @@ export default function BouquetsPage() {
             <TableRow className="bg-muted/50">
               <SortableTableHead label="Название" active={sort.key === "name"} direction={sort.direction} onClick={() => toggleSort("name")} className="w-[13%]" />
               {/* Категория рядом с названием: по ней букеты ищут. */}
-              <SortableTableHead label="Категория" active={sort.key === "category"} direction={sort.direction} onClick={() => toggleSort("category")} className="w-[8%]" />
-              <SortableTableHead label="Состав" active={sort.key === "components"} direction={sort.direction} onClick={() => toggleSort("components")} className="w-[22%]" />
+              <SortableTableHead label="Категория" active={sort.key === "category"} direction={sort.direction} onClick={() => toggleSort("category")} className="w-[9%] whitespace-nowrap" />
+              <SortableTableHead label="Состав" active={sort.key === "components"} direction={sort.direction} onClick={() => toggleSort("components")} className="w-[19%]" />
               {/* «Собрано» вместо «остатка»: букеты не закупают, а собирают, и
                   число показывает, сколько их сейчас лежит на складе. */}
-              <SortableTableHead label="Собрано" active={sort.key === "stock"} direction={sort.direction} onClick={() => toggleSort("stock")} className="w-[7%] text-right" />
-              <SortableTableHead label="Себестоимость" active={sort.key === "cost"} direction={sort.direction} onClick={() => toggleSort("cost")} className="w-[10%] text-right" />
-              <SortableTableHead label="Наценка" active={sort.key === "markup"} direction={sort.direction} onClick={() => toggleSort("markup")} className="w-[7%] text-right" />
-              <SortableTableHead label="Цена продажи" active={sort.key === "sale"} direction={sort.direction} onClick={() => toggleSort("sale")} className="w-[9%] text-right" />
+              <SortableTableHead label="Собрано" active={sort.key === "stock"} direction={sort.direction} onClick={() => toggleSort("stock")} className="w-[8%] whitespace-nowrap text-right" />
+              <SortableTableHead label="Себестоимость" active={sort.key === "cost"} direction={sort.direction} onClick={() => toggleSort("cost")} className="w-[12%] whitespace-nowrap text-right" />
+              <SortableTableHead label="Наценка" active={sort.key === "markup"} direction={sort.direction} onClick={() => toggleSort("markup")} className="w-[8%] whitespace-nowrap text-right" />
+              <SortableTableHead label="Цена продажи" active={sort.key === "sale"} direction={sort.direction} onClick={() => toggleSort("sale")} className="w-[11%] whitespace-nowrap text-right" />
               <TableHead className="w-[13%]">Последняя сборка</TableHead>
               <TableHead className="w-[11%]"></TableHead>
               {/* Полоса для растягивания: она должна попадать внутрь окна, иначе

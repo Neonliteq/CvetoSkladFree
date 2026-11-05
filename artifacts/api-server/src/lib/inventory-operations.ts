@@ -371,6 +371,157 @@ export async function addMovement(
   );
 }
 
+/**
+ * Общий механизм массового документа: приход, продажа или списание по нескольким товарам.
+ *
+ * Вся пачка проводится в **одной транзакции**: если хотя бы одна строка неверна (товара
+ * нет, количество нулевое, не хватает остатка), не проводится ничего. Иначе после ошибки
+ * на десятой строке в базе остались бы девять операций, и разбираться, что уже прошло,
+ * пришлось бы вручную — а остатки разъехались бы с бумагой.
+ *
+ * Строки идут в том же порядке, что и в документе: приход создаёт партию на каждую строку,
+ * поэтому один товар двумя строками даёт две партии с разными ценой и сроком.
+ */
+async function runBulkDocument(
+  type: "receipt" | "expense" | "writeoff",
+  input: {
+    positions: Array<{
+      productId: number;
+      quantity: number;
+      unitPrice?: number;
+      markupPercent?: number;
+      saleUnitPrice?: number;
+      receiptMovementId?: number;
+      reason?: string | null;
+    }>;
+    orderNumber?: string | null;
+    batchArrivalDate?: Date | string | null;
+    reason?: string | null;
+    excludeFromStats?: boolean;
+  },
+  authorId?: number | null,
+) {
+  return db.transaction(async (tx) => {
+    const movements = [];
+    for (const [index, position] of input.positions.entries()) {
+      // Номер строки в сообщении об ошибке: по нему в накладной сразу видно, где искать.
+      const line = index + 1;
+      if (!(position.quantity > 0)) {
+        throw new Error(`Строка ${line}: количество должно быть больше нуля`);
+      }
+      if (position.unitPrice !== undefined && position.unitPrice < 0) {
+        throw new Error(`Строка ${line}: цена не может быть отрицательной`);
+      }
+      // Цена продажи есть только у продажи; отрицательная — ошибка, ноль допустим.
+      if (position.saleUnitPrice !== undefined && position.saleUnitPrice < 0) {
+        throw new Error(`Строка ${line}: цена продажи не может быть отрицательной`);
+      }
+      try {
+        const movement = await applyMovement(
+          tx,
+          {
+            productId: position.productId,
+            type,
+            quantity: position.quantity,
+            unitPrice: position.unitPrice,
+            markupPercent: position.markupPercent,
+            saleUnitPrice: position.saleUnitPrice,
+            receiptMovementId: position.receiptMovementId,
+            orderNumber: input.orderNumber ?? undefined,
+            batchArrivalDate: input.batchArrivalDate ?? undefined,
+            // Своя причина строки важнее общей: в списании часть позиций бывает со своим
+            // объяснением («брак» на одну позицию при общем «увядшие»).
+            reason: position.reason ?? input.reason ?? undefined,
+            excludeFromStats: input.excludeFromStats,
+          } as typeof CreateMovementBody._type,
+          undefined,
+          { authorId, skipBouquetRecalculation: true },
+        );
+        movements.push(movement);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "ошибка операции";
+        // Пересчёт букетов пропускается до конца накладной: если транзакция откатится,
+        // пересчёт всё равно не сохранится, а лишние запросы на каждой строке не нужны.
+        throw new Error(`Строка ${line}: ${message}`);
+      }
+    }
+    // Затронутые товары пересчитываем один раз в конце, а не на каждой строке: букет может
+    // ссылаться на два товара из документа, и пересчитывать его дважды незачем.
+    const touched = [...new Set(movements.map((movement) => movement.productId))];
+    for (const productId of touched) {
+      await recalculateDependentBouquets(tx, productId);
+    }
+    // Суммы здесь **не** считаются: у расхода себестоимость складывается из партий, и
+    // появляется она только в `withBatchAllocations`. Попытка взять `totalCost` прямо из
+    // записи даёт ноль — так и случилось в первый раз: документ прошёл, а в ответе
+    // «себестоимость 0». Итоги собирает маршрут, уже по обогащённым строкам.
+    return { movements };
+  });
+}
+
+/** Приход нескольких товаров одной накладной. */
+export async function addBulkReceipt(
+  input: {
+    positions: Array<{
+      productId: number;
+      quantity: number;
+      unitPrice?: number;
+      markupPercent?: number;
+    }>;
+    orderNumber?: string | null;
+    batchArrivalDate?: Date | string | null;
+    reason?: string | null;
+    excludeFromStats?: boolean;
+  },
+  authorId?: number | null,
+) {
+  return runBulkDocument("receipt", input, authorId);
+}
+
+/**
+ * Продажа нескольких товаров за один раз.
+ *
+ * Цена продажи по строке необязательна: если её не задали, берётся цена товара по наценке —
+ * так же, как в одиночной продаже. Партию можно указать явно, иначе списание идёт по FIFO.
+ */
+export async function addBulkExpense(
+  input: {
+    positions: Array<{
+      productId: number;
+      quantity: number;
+      saleUnitPrice?: number;
+      receiptMovementId?: number;
+    }>;
+    reason?: string | null;
+    excludeFromStats?: boolean;
+  },
+  authorId?: number | null,
+) {
+  return runBulkDocument("expense", input, authorId);
+}
+
+/**
+ * Списание нескольких товаров за один раз.
+ *
+ * Причина общая на документ, но у строки может быть своя — поэтому строки принимают её
+ * отдельно. Партию можно указать явно, иначе списание идёт по FIFO.
+ */
+export async function addBulkWriteoff(
+  input: {
+    positions: Array<{
+      productId: number;
+      quantity: number;
+      reason?: string | null;
+      receiptMovementId?: number;
+    }>;
+    reason?: string | null;
+    excludeFromStats?: boolean;
+  },
+  authorId?: number | null,
+) {
+  return runBulkDocument("writeoff", input, authorId);
+}
+
 export async function editReceipt(
   movementId: number,
   changes: {

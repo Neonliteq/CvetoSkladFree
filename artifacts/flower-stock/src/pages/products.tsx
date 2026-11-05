@@ -1,4 +1,5 @@
-import { Fragment, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
+import { useSearch } from "wouter"
 import {
   Product,
   getGetDashboardQueryKey,
@@ -173,11 +174,62 @@ export default function ProductsPage() {
     setExpandedProductId((current) => current === productId ? null : productId)
   }
 
+  /**
+   * Переход со сводки: `/products?product=<id>` открывает нужный товар.
+   *
+   * Сводка показывает только названия, а вопрос «что с этой розой» решается на складе: там
+   * карточка товара с приходами и сроками. Поэтому ссылка не просто переключает раздел, а
+   * раскрывает строку и прокручивает к ней — иначе человек ищет товар в списке сам.
+   *
+   * Фильтры сбрасываются: при поиске или включённом «только низкий остаток» нужной строки
+   * могло не оказаться в списке, и переход вёл бы в пустоту.
+   */
+  const searchParams = useSearch()
+  const deepLinkId = useMemo(() => {
+    const value = Number(new URLSearchParams(searchParams).get("product"))
+    return Number.isFinite(value) && value > 0 ? value : null
+  }, [searchParams])
+  const [highlightedProductId, setHighlightedProductId] = useState<number | null>(null)
+  const handledDeepLink = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (!deepLinkId || !products) return
+    if (handledDeepLink.current === deepLinkId) return
+    if (!products.some((product) => product.id === deepLinkId)) return
+    handledDeepLink.current = deepLinkId
+    setSearch("")
+    setLowStockFilter(false)
+    setShowArchived(false)
+    setExpandedProductId(deepLinkId)
+    setHighlightedProductId(deepLinkId)
+    // Строка отрисуется в этом же кадре — прокручиваем после неё.
+    requestAnimationFrame(() => {
+      document
+        .querySelector(`[data-product-row="${deepLinkId}"]`)
+        ?.scrollIntoView({ block: "center", behavior: "smooth" })
+    })
+    const timer = setTimeout(() => setHighlightedProductId(null), 2500)
+    return () => clearTimeout(timer)
+  }, [deepLinkId, products])
+
+  // `?lowStock=1` — переход из сводки «и ещё N»: там нужен весь список дефицита.
+  const lowStockDeepLink = useMemo(
+    () => new URLSearchParams(searchParams).get("lowStock") === "1",
+    [searchParams],
+  )
+  useEffect(() => {
+    if (lowStockDeepLink) {
+      setShowArchived(false)
+      setLowStockFilter(true)
+    }
+  }, [lowStockDeepLink])
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Склад</h1>          <p className="text-muted-foreground mt-1">Управление каталогом и остатками</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Склад</h1>
+          <p className="text-muted-foreground mt-1">Управление каталогом и остатками</p>
         </div>
         <CreateProductDialog />
       </div>
@@ -212,7 +264,7 @@ export default function ProductsPage() {
           <Archive className="mr-2 h-4 w-4" />
           {showArchived ? "Обычный склад" : "Архив"}
           {!showArchived && archivedCount > 0 && (
-            <span className="ml-2 rounded-full bg-muted-foreground/15 px-2 py-0.5 text-xs font-semibold">
+            <span className="ml-2 rounded-sm bg-muted-foreground/15 px-2 py-0.5 text-xs font-semibold">
               {archivedCount}
             </span>
           )}
@@ -220,11 +272,11 @@ export default function ProductsPage() {
       </div>
 
       {isLoading ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           Загрузка...
         </div>
       ) : stockProducts?.length === 0 ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground shadow-sm">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground shadow-sm">
           {showArchived
             ? "В архиве нет товаров."
             : search || lowStockFilter
@@ -294,7 +346,12 @@ export default function ProductsPage() {
                 return (
                 <Fragment key={product.id}>
                 <TableRow
-                  className={`group cursor-pointer ${rowClass}`}
+                  data-product-row={product.id}
+                  className={`group cursor-pointer ${rowClass} ${
+                    highlightedProductId === product.id
+                      ? "bg-primary/5 ring-2 ring-inset ring-primary/40"
+                      : ""
+                  }`}
                   aria-expanded={isExpanded}
                   tabIndex={0}
                   onClick={() => toggleProduct(product.id)}
@@ -320,7 +377,7 @@ export default function ProductsPage() {
                           bare grey arrow was too easy to miss. */}
                       <span
                         aria-hidden
-                        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors ${
+                        className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-sm transition-colors ${
                           isExpanded
                             ? "bg-primary text-primary-foreground"
                             : "bg-muted text-muted-foreground group-hover:bg-muted-foreground/20"
@@ -341,7 +398,7 @@ export default function ProductsPage() {
                             <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
                           )}
                           {isArchived && (
-                            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                            <span className="shrink-0 rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                               в архиве
                             </span>
                           )}

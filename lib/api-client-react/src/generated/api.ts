@@ -34,11 +34,17 @@ import type {
   AuthSession,
   Bouquet,
   BouquetInput,
+  BulkExpenseInput,
+  BulkMovementResult,
+  BulkReceiptInput,
+  BulkWriteoffInput,
   ChannelLink,
   ClaimChannelInput,
   ClaimChannelResult,
   CreateUserInput,
   Dashboard,
+  DeliveryDetail,
+  DeliveryList,
   DeviceUser,
   GetMovementAnalyticsParams,
   HealthStatus,
@@ -47,6 +53,7 @@ import type {
   InvoiceRecognition,
   InvoiceRecognizeInput,
   ListBouquetStockBatchesParams,
+  ListDeliveriesParams,
   ListMovementsParams,
   ListProductionBatchesParams,
   ListProductsParams,
@@ -1892,6 +1899,384 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
       > => {
       return useMutation(getCreateMovementMutationOptions(options));
     }
+
+export const getCreateBulkReceiptUrl = () => {
+
+
+
+
+  return `/api/movements/bulk-receipt`
+}
+
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна (нет товара, нулевое количество, отрицательная цена), не проводится ничего. Одинаковый товар двумя строками создаёт две отдельные партии.
+ * @summary Приход нескольких товаров одной накладной
+ */
+export const createBulkReceipt = async (bulkReceiptInput: BulkReceiptInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkMovementResult> => {
+
+  return customFetch<BulkMovementResult>(getCreateBulkReceiptUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkReceiptInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBulkReceiptMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkReceipt>>, TError,{data: BodyType<BulkReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBulkReceipt>>, TError,{data: BodyType<BulkReceiptInput>}, TContext> => {
+
+const mutationKey = ['createBulkReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBulkReceipt>>, {data: BodyType<BulkReceiptInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBulkReceipt(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBulkReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof createBulkReceipt>>>
+    export type CreateBulkReceiptMutationBody = BodyType<BulkReceiptInput>
+    export type CreateBulkReceiptMutationError = ErrorType<void>
+
+    /**
+ * @summary Приход нескольких товаров одной накладной
+ */
+export const useCreateBulkReceipt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkReceipt>>, TError,{data: BodyType<BulkReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBulkReceipt>>,
+        TError,
+        {data: BodyType<BulkReceiptInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBulkReceiptMutationOptions(options));
+    }
+
+export const getCreateBulkExpenseUrl = () => {
+
+
+
+
+  return `/api/movements/bulk-expense`
+}
+
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна (нет товара, нулевое количество, не хватает остатка), не продаётся ничего. Цена продажи по строке необязательна: пусто — берётся цена товара по наценке.
+ * @summary Продажа нескольких товаров сразу
+ */
+export const createBulkExpense = async (bulkExpenseInput: BulkExpenseInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkMovementResult> => {
+
+  return customFetch<BulkMovementResult>(getCreateBulkExpenseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkExpenseInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBulkExpenseMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkExpense>>, TError,{data: BodyType<BulkExpenseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBulkExpense>>, TError,{data: BodyType<BulkExpenseInput>}, TContext> => {
+
+const mutationKey = ['createBulkExpense'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBulkExpense>>, {data: BodyType<BulkExpenseInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBulkExpense(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBulkExpenseMutationResult = NonNullable<Awaited<ReturnType<typeof createBulkExpense>>>
+    export type CreateBulkExpenseMutationBody = BodyType<BulkExpenseInput>
+    export type CreateBulkExpenseMutationError = ErrorType<void>
+
+    /**
+ * @summary Продажа нескольких товаров сразу
+ */
+export const useCreateBulkExpense = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkExpense>>, TError,{data: BodyType<BulkExpenseInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBulkExpense>>,
+        TError,
+        {data: BodyType<BulkExpenseInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBulkExpenseMutationOptions(options));
+    }
+
+export const getCreateBulkWriteoffUrl = () => {
+
+
+
+
+  return `/api/movements/bulk-writeoff`
+}
+
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна, не списывается ничего. Причина общая на документ, но у строки может быть своя.
+ * @summary Списание нескольких товаров сразу
+ */
+export const createBulkWriteoff = async (bulkWriteoffInput: BulkWriteoffInput, options?: Parameters<typeof customFetch>[1]): Promise<BulkMovementResult> => {
+
+  return customFetch<BulkMovementResult>(getCreateBulkWriteoffUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(bulkWriteoffInput)
+  }
+);}
+
+
+
+
+
+export const getCreateBulkWriteoffMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkWriteoff>>, TError,{data: BodyType<BulkWriteoffInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createBulkWriteoff>>, TError,{data: BodyType<BulkWriteoffInput>}, TContext> => {
+
+const mutationKey = ['createBulkWriteoff'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createBulkWriteoff>>, {data: BodyType<BulkWriteoffInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createBulkWriteoff(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateBulkWriteoffMutationResult = NonNullable<Awaited<ReturnType<typeof createBulkWriteoff>>>
+    export type CreateBulkWriteoffMutationBody = BodyType<BulkWriteoffInput>
+    export type CreateBulkWriteoffMutationError = ErrorType<void>
+
+    /**
+ * @summary Списание нескольких товаров сразу
+ */
+export const useCreateBulkWriteoff = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createBulkWriteoff>>, TError,{data: BodyType<BulkWriteoffInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createBulkWriteoff>>,
+        TError,
+        {data: BodyType<BulkWriteoffInput>},
+        TContext
+      > => {
+      return useMutation(getCreateBulkWriteoffMutationOptions(options));
+    }
+
+export const getListDeliveriesUrl = (params?: ListDeliveriesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/deliveries?${stringifiedParams}` : `/api/deliveries`
+}
+
+/**
+ * Поставка — это приход, проведённый в один момент одним человеком. Позиции одной накладной пишутся одной транзакцией, поэтому у них совпадает время создания: по нему и собирается документ. Так же выглядят и старые приходы, сделанные до появления списка.
+ * @summary Список поставок — приходы, сгруппированные по документу
+ */
+export const listDeliveries = async (params?: ListDeliveriesParams, options?: Parameters<typeof customFetch>[1]): Promise<DeliveryList> => {
+
+  return customFetch<DeliveryList>(getListDeliveriesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListDeliveriesQueryKey = (params?: ListDeliveriesParams,) => {
+    return [
+    `/api/deliveries`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListDeliveriesQueryOptions = <TData = Awaited<ReturnType<typeof listDeliveries>>, TError = ErrorType<unknown>>(params?: ListDeliveriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListDeliveriesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listDeliveries>>> = ({ signal }) => listDeliveries(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listDeliveries>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListDeliveriesQueryResult = NonNullable<Awaited<ReturnType<typeof listDeliveries>>>
+export type ListDeliveriesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Список поставок — приходы, сгруппированные по документу
+ */
+
+export function useListDeliveries<TData = Awaited<ReturnType<typeof listDeliveries>>, TError = ErrorType<unknown>>(
+ params?: ListDeliveriesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listDeliveries>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListDeliveriesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetDeliveryUrl = (key: string,) => {
+
+
+
+
+  return `/api/deliveries/${key}`
+}
+
+/**
+ * @summary Позиции одной поставки
+ */
+export const getDelivery = async (key: string, options?: Parameters<typeof customFetch>[1]): Promise<DeliveryDetail> => {
+
+  return customFetch<DeliveryDetail>(getGetDeliveryUrl(key),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDeliveryQueryKey = (key: string,) => {
+    return [
+    `/api/deliveries/${key}`
+    ] as const;
+    }
+
+
+export const getGetDeliveryQueryOptions = <TData = Awaited<ReturnType<typeof getDelivery>>, TError = ErrorType<void>>(key: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDeliveryQueryKey(key);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDelivery>>> = ({ signal }) => getDelivery(key, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: key !== null && key !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDelivery>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDeliveryQueryResult = NonNullable<Awaited<ReturnType<typeof getDelivery>>>
+export type GetDeliveryQueryError = ErrorType<void>
+
+
+/**
+ * @summary Позиции одной поставки
+ */
+
+export function useGetDelivery<TData = Awaited<ReturnType<typeof getDelivery>>, TError = ErrorType<void>>(
+ key: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDelivery>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDeliveryQueryOptions(key,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetMovementAnalyticsUrl = (params?: GetMovementAnalyticsParams,) => {
   const normalizedParams = new URLSearchParams();

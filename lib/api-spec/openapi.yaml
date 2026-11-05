@@ -514,6 +514,132 @@ paths:
                 $ref: "#/components/schemas/Movement"
         "400":
           description: Недостаточный остаток или неверные данные
+  /movements/bulk-receipt:
+    post:
+      operationId: createBulkReceipt
+      tags: [movements]
+      summary: Приход нескольких товаров одной накладной
+      description: >-
+        Проводит все позиции в одной транзакции: если хотя бы одна строка неверна
+        (нет товара, нулевое количество, отрицательная цена), не проводится ничего.
+        Одинаковый товар двумя строками создаёт две отдельные партии.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkReceiptInput"
+      responses:
+        "201":
+          description: Накладная проведена целиком
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkMovementResult"
+        "400":
+          description: "Накладная не проведена: одна из строк неверна"
+  /movements/bulk-expense:
+    post:
+      operationId: createBulkExpense
+      tags: [movements]
+      summary: Продажа нескольких товаров сразу
+      description: >-
+        Проводит все позиции в одной транзакции: если хотя бы одна строка неверна
+        (нет товара, нулевое количество, не хватает остатка), не продаётся ничего.
+        Цена продажи по строке необязательна: пусто — берётся цена товара по наценке.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkExpenseInput"
+      responses:
+        "201":
+          description: Продажа проведена целиком
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkMovementResult"
+        "400":
+          description: "Продажа не проведена: одна из строк неверна"
+  /movements/bulk-writeoff:
+    post:
+      operationId: createBulkWriteoff
+      tags: [movements]
+      summary: Списание нескольких товаров сразу
+      description: >-
+        Проводит все позиции в одной транзакции: если хотя бы одна строка неверна,
+        не списывается ничего. Причина общая на документ, но у строки может быть своя.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BulkWriteoffInput"
+      responses:
+        "201":
+          description: Списание проведено целиком
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BulkMovementResult"
+        "400":
+          description: "Списание не проведено: одна из строк неверна"
+  /deliveries:
+    get:
+      operationId: listDeliveries
+      tags: [movements]
+      summary: Список поставок — приходы, сгруппированные по документу
+      description: >-
+        Поставка — это приход, проведённый в один момент одним человеком. Позиции одной
+        накладной пишутся одной транзакцией, поэтому у них совпадает время создания: по нему
+        и собирается документ. Так же выглядят и старые приходы, сделанные до появления списка.
+      parameters:
+        - in: query
+          name: limit
+          schema: { type: number, minimum: 1, maximum: 100, default: 50 }
+        - in: query
+          name: offset
+          schema: { type: number, minimum: 0, default: 0 }
+        - in: query
+          name: search
+          description: Поиск по номеру накладной, товару и поставщику
+          schema: { type: string, maxLength: 100 }
+        - in: query
+          name: from
+          description: Дата прихода с
+          schema: { type: string, format: date }
+        - in: query
+          name: to
+          description: Дата прихода по
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Список поставок, свежие сверху
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryList"
+  /deliveries/{key}:
+    get:
+      operationId: getDelivery
+      tags: [movements]
+      summary: Позиции одной поставки
+      parameters:
+        - in: path
+          name: key
+          required: true
+          description: Идентификатор поставки из списка
+          schema: { type: string }
+      responses:
+        "200":
+          description: Поставка и её позиции
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeliveryDetail"
+        "404":
+          description: Поставка не найдена
   /analytics/movements:
     get:
       operationId: getMovementAnalytics
@@ -1200,6 +1326,146 @@ components:
         orderNumber: { type: string }
         batchArrivalDate: { type: string, format: date }
         cutDate: { type: string, format: date }
+    BulkReceiptPosition:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: number, description: Товар из каталога }
+        quantity: { type: number, exclusiveMinimum: 0, description: Количество в единицах товара }
+        unitPrice: { type: number, minimum: 0, description: Закупочная цена за единицу }
+        markupPercent: { type: number, minimum: 0, maximum: 1000, description: Наценка позиции }
+    BulkReceiptInput:
+      type: object
+      required: [positions]
+      properties:
+        # Поля накладной общие для всех строк: одна поставка приходит одним документом
+        # и одной датой. Количество, цена и срок у каждой строки свои.
+        positions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: "Позиции накладной; одинаковый товар можно указать дважды — это будут две партии"
+          items: { $ref: "#/components/schemas/BulkReceiptPosition" }
+        orderNumber: { type: ["string", "null"], description: Номер накладной }
+        batchArrivalDate:
+          type: ["string", "null"]
+          format: date
+          description: Дата прихода; пусто — сегодня
+        reason: { type: ["string", "null"], description: Комментарий к накладной }
+        excludeFromStats:
+          type: boolean
+          description: Не учитывать всю накладную в статистике
+    BulkExpensePosition:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: number, description: Товар из каталога }
+        quantity: { type: number, exclusiveMinimum: 0, description: Количество в единицах товара }
+        # Необязательна: пусто — берётся цена товара по наценке, как в одиночной продаже.
+        saleUnitPrice: { type: number, minimum: 0, description: Цена продажи за единицу }
+        receiptMovementId: { type: number, description: Из какой партии списать; пусто — по FIFO }
+    BulkExpenseInput:
+      type: object
+      required: [positions]
+      properties:
+        positions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: "Позиции продажи; одинаковый товар можно указать дважды — спишется из разных партий"
+          items: { $ref: "#/components/schemas/BulkExpensePosition" }
+        reason: { type: ["string", "null"], description: Комментарий к продаже }
+        excludeFromStats:
+          type: boolean
+          description: Не учитывать всю продажу в статистике
+    BulkWriteoffPosition:
+      type: object
+      required: [productId, quantity]
+      properties:
+        productId: { type: number, description: Товар из каталога }
+        quantity: { type: number, exclusiveMinimum: 0, description: Количество в единицах товара }
+        # Своя причина строки важнее общей: «брак» на одну позицию при общем «увядшие».
+        reason: { type: ["string", "null"], description: Своя причина списания для строки }
+        receiptMovementId: { type: number, description: Из какой партии списать; пусто — по FIFO }
+    BulkWriteoffInput:
+      type: object
+      required: [positions]
+      properties:
+        positions:
+          type: array
+          minItems: 1
+          maxItems: 50
+          description: "Позиции списания; одинаковый товар можно указать дважды — спишется из разных партий"
+          items: { $ref: "#/components/schemas/BulkWriteoffPosition" }
+        reason: { type: ["string", "null"], description: Общая причина списания }
+        excludeFromStats:
+          type: boolean
+          description: Не учитывать всё списание в статистике
+    Delivery:
+      type: object
+      required: [key, deliveredAt, positions, quantity, cost]
+      properties:
+        key:
+          type: string
+          description: Идентификатор поставки для запроса позиций
+        deliveredAt:
+          type: string
+          format: date-time
+          description: Когда провели приход
+        arrivedAt:
+          type: ["string", "null"]
+          format: date
+          description: Дата прихода — как записана в накладной
+        orderNumber:
+          type: ["string", "null"]
+          description: Номер накладной, если его указали
+        suppliers:
+          type: array
+          items: { type: string }
+          description: Поставщики товаров поставки
+        products:
+          type: array
+          items: { type: string }
+          description: Названия позиций — чтобы узнать поставку в списке
+        positions: { type: number, description: Сколько позиций в поставке }
+        quantity: { type: number, description: Сколько единиц всего }
+        cost: { type: number, description: Сумма закупки }
+        createdBy: { type: ["number", "null"] }
+        createdByName:
+          type: ["string", "null"]
+          description: Кто провёл приход; null у старых операций без автора
+    DeliveryList:
+      type: object
+      required: [items, total]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/Delivery" }
+        total: { type: number, description: Сколько поставок всего под фильтром }
+    DeliveryDetail:
+      type: object
+      required: [delivery, movements]
+      properties:
+        delivery: { $ref: "#/components/schemas/Delivery" }
+        movements:
+          type: array
+          description: Позиции поставки
+          items: { $ref: "#/components/schemas/Movement" }
+    BulkMovementResult:
+      type: object
+      required: [movements, totalQuantity, totalCost]
+      properties:
+        movements:
+          type: array
+          description: Созданные операции — по одной на строку
+          items: { $ref: "#/components/schemas/Movement" }
+        totalQuantity: { type: number, description: Сколько единиц всего }
+        totalCost:
+          type: number
+          description: Сумма закупки для прихода, себестоимость расхода для продажи и списания
+        totalRevenue:
+          type: ["number", "null"]
+          description: Выручка; есть только у продажи, у прихода и списания — null
     ReceiptUpdate:
       type: object
       minProperties: 1

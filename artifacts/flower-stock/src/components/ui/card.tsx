@@ -5,7 +5,10 @@ const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElemen
   ({ className, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-xl border bg-card text-card-foreground shadow-sm", className)}
+      // Признак карточки для проверок и вспомогательных технологий. Раньше проверки искали
+      // её по классу `rounded-xl`, и смена скруглений ломала тесты, не ломая интерфейс.
+      data-slot="card"
+      className={cn("rounded-lg border bg-card text-card-foreground shadow-sm", className)}
       {...props}
     />
   )

@@ -109,10 +109,10 @@ try {
       node.textContent.trim(),
     );
     return {
-      hasRevenue: text.includes('Выручка'),
-      hasCost: text.includes('Себестоимость'),
-      hasProfit: text.includes('Валовая прибыль'),
-      hasSales: text.includes('Продажи'),
+      hasRevenue: /выручка/i.test(text),
+      hasCost: /себестоимость/i.test(text),
+      hasProfit: /валовая прибыль/i.test(text),
+      hasSales: /продажи/i.test(text),
       values,
       deltas,
       hasError: /Ошибка|Что-то пошло не так/i.test(text),
@@ -321,7 +321,7 @@ try {
     return {
       overflowX: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       hasBreakdown: /Разбор/.test(text),
-      hasCards: /Выручка/.test(text) && /Валовая прибыль/.test(text),
+      hasCards: /выручка/i.test(text) && /валовая прибыль/i.test(text),
       groupButtons: [...document.querySelectorAll('[role="group"][aria-label="Разбор аналитики"] button')]
         .map((node) => Math.round(node.getBoundingClientRect().height)),
     };

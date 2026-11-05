@@ -25,6 +25,8 @@ type Props = {
   onEdit: (product: Product) => void
   onDelete: (product: Product) => void
   onRestore: (product: Product) => void
+  /** Товар, к которому перешли со сводки: раскрываем и подсвечиваем его. */
+  focusProductId?: number | null
 }
 
 /**
@@ -43,8 +45,9 @@ export function ProductsMobileList({
   onEdit,
   onDelete,
   onRestore,
+  focusProductId,
 }: Props) {
-  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(focusProductId ?? null)
 
   return (
     <div className="space-y-3">
@@ -59,9 +62,10 @@ export function ProductsMobileList({
         return (
           <Fragment key={product.id}>
             <div
-              className={`rounded-xl border bg-card p-3 shadow-sm ${
+              data-product-row={product.id}
+              className={`rounded-lg border bg-card p-3 shadow-sm ${
                 isLow ? "border-l-4 border-l-amber-500 bg-amber-500/5" : ""
-              }`}
+              } ${focusProductId === product.id ? "ring-2 ring-primary/40" : ""}`}
             >
               <button
                 type="button"
@@ -76,7 +80,7 @@ export function ProductsMobileList({
                     </span>
                     {isLow && <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
                     {archived && (
-                      <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                      <span className="shrink-0 rounded-sm bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                         в архиве
                       </span>
                     )}
@@ -180,7 +184,7 @@ export function ProductsMobileList({
             </div>
 
             {isExpanded && (
-              <div className="rounded-xl border bg-muted/20 p-3">
+              <div className="rounded-lg border bg-muted/20 p-3">
                 <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <PackagePlus className="h-3.5 w-3.5" />
                   Партии товара

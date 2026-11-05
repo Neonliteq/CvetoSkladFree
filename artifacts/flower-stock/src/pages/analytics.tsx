@@ -2,6 +2,7 @@ import { useState } from "react"
 import { useGetMovementAnalytics, useListProducts } from "@workspace/api-client-react"
 import { formatCurrency, formatDate, formatDateShort } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { MetricCard } from "@/components/metric-card"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -32,6 +33,36 @@ import { Activity, BadgeDollarSign, CircleDollarSign, WalletCards } from "lucide
 const BREAKDOWN_PREVIEW = 8
 
 /**
+ * Стили всплывающей подсказки графиков.
+ *
+ * Раньше здесь стояло `backgroundColor: 'var(--card)'`, и подсказка была прозрачной: `--card`
+ * — это тройка HSL (`335 15% 12%`), а не цвет. Браузер такое значение отбрасывает молча, фон
+ * остаётся прозрачным, и текст подсказки читается поверх линий графика.
+ *
+ * Нужны зарегистрированные токены `--color-*` (они уже готовые цвета) — тот же приём, что с
+ * `--color-chart-1`. Один набор стилей на оба графика: иначе они разъедутся, как разъехались
+ * когда-то подписи видов операций.
+ */
+const CHART_TOOLTIP_STYLE: React.CSSProperties = {
+  backgroundColor: "var(--color-card)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "8px",
+  boxShadow: "0 6px 20px rgb(0 0 0 / 0.18)",
+  padding: "8px 12px",
+}
+
+const CHART_TOOLTIP_LABEL_STYLE: React.CSSProperties = {
+  color: "var(--color-foreground)",
+  fontWeight: 600,
+  marginBottom: "4px",
+}
+
+const CHART_TOOLTIP_ITEM_STYLE: React.CSSProperties = {
+  color: "var(--color-foreground)",
+  padding: "0",
+}
+
+/**
  * Сравнение с прошлым периодом.
  *
  * Без него «47 496 ₽» ничего не говорит: непонятно, это рост или провал.
@@ -55,7 +86,7 @@ function DeltaBadge({
         change === null
           ? "text-muted-foreground"
           : change >= 0
-            ? "text-green-600"
+            ? "text-green-600 dark:text-green-400"
             : "text-destructive"
       }`}
       title={`${label}: прошлый период ${formatCurrency(previous)}`}
@@ -114,7 +145,7 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Аналитика</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Аналитика</h1>
         <p className="text-muted-foreground mt-1">Анализ движения товаров и финансовых потоков</p>
       </div>
 
@@ -223,70 +254,61 @@ export default function AnalyticsPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Выручка</CardTitle>
-                <CircleDollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(analytics.totalRevenue)}</div>
-                <p className="mt-1 text-xs text-muted-foreground">По фактическим ценам продаж</p>
+            <MetricCard
+              label="Выручка"
+              value={formatCurrency(analytics.totalRevenue)}
+              hint="По фактическим ценам продаж"
+              icon={CircleDollarSign}
+              footer={
                 <DeltaBadge
                   current={analytics.totalRevenue}
                   previous={analytics.previous?.totalRevenue}
                   label="Выручка"
                 />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Себестоимость</CardTitle>
-                <WalletCards className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(analytics.totalCost)}</div>
-                <p className="mt-1 text-xs text-muted-foreground">По списанным FIFO-партиям</p>
+              }
+            />
+            <MetricCard
+              label="Себестоимость"
+              value={formatCurrency(analytics.totalCost)}
+              hint="По списанным FIFO-партиям"
+              icon={WalletCards}
+              footer={
                 <DeltaBadge
                   current={analytics.totalCost}
                   previous={analytics.previous?.totalCost}
                   label="Себестоимость"
                 />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Валовая прибыль</CardTitle>
-                <BadgeDollarSign className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{formatCurrency(analytics.grossProfit)}</div>
-                <p className="mt-1 text-xs text-muted-foreground">Выручка минус себестоимость</p>
+              }
+            />
+            <MetricCard
+              label="Валовая прибыль"
+              value={formatCurrency(analytics.grossProfit)}
+              hint="Выручка минус себестоимость"
+              icon={BadgeDollarSign}
+              tone={analytics.grossProfit < 0 ? "danger" : "default"}
+              footer={
                 <DeltaBadge
                   current={analytics.grossProfit}
                   previous={analytics.previous?.grossProfit}
                   label="Валовая прибыль"
                 />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Продажи</CardTitle>
-                <Activity className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">
-                  {analytics.byType.find((item) => item.type === "expense")?.operations ?? 0}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {analytics.byType.find((item) => item.type === "expense")?.quantity ?? 0} ед. за период
-                </p>
+              }
+            />
+            <MetricCard
+              label="Продажи"
+              value={
+                analytics.byType.find((item) => item.type === "expense")?.operations ?? 0
+              }
+              hint={`${analytics.byType.find((item) => item.type === "expense")?.quantity ?? 0} ед. за период`}
+              icon={Activity}
+              footer={
                 <DeltaBadge
                   current={analytics.totalRevenue}
                   previous={analytics.previous?.totalRevenue}
                   label="Выручка"
                 />
-              </CardContent>
-            </Card>
+              }
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -301,23 +323,25 @@ export default function AnalyticsPage() {
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={analytics.timeline}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                     <XAxis
                       dataKey="date"
                       tickFormatter={(val) => formatDateShort(val)}
-                      stroke="var(--muted-foreground)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                     />
                     <YAxis
-                      stroke="var(--muted-foreground)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(val) => `₽${val}`}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                      itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       labelFormatter={(val) => formatDate(val as string)}
                       formatter={(val: number, name: string) => [formatCurrency(val), name]}
                     />
@@ -365,22 +389,24 @@ export default function AnalyticsPage() {
               <CardContent className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={analytics.timeline}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
                     <XAxis
                       dataKey="date"
                       tickFormatter={(val) => formatDateShort(val)}
-                      stroke="var(--muted-foreground)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                     />
                     <YAxis
-                      stroke="var(--muted-foreground)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                     />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'var(--card)', borderColor: 'var(--border)' }}
+                      contentStyle={CHART_TOOLTIP_STYLE}
+                      labelStyle={CHART_TOOLTIP_LABEL_STYLE}
+                      itemStyle={CHART_TOOLTIP_ITEM_STYLE}
                       labelFormatter={(val) => formatDate(val as string)}
                       formatter={(val: number, name: string) => [val, name]}
                     />

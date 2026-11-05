@@ -196,6 +196,10 @@ if (process.argv.includes("--checks")) {
       "check-invoice-e2e.mjs", // ключ AI
       "check-prod-assistant.mjs", // живой сервер
       "check-voice-support.mjs", // отчёт о среде, а не проверка
+      // Проверяет **публичную выгрузку**, а не этот репозиторий: здесь личные данные есть
+      // по устройству (адреса, пароли, журнал), и запуск без --dir ругался бы на них.
+      // Запускать так: node scripts/src/check-public-export.mjs --dir <каталог выгрузки>
+      "check-public-export.mjs",
     ].includes(file);
   const local = checkFiles.filter((file) => !needsEnvironment(file));
   for (const file of local) {

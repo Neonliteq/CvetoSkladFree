@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ThemeProvider } from 'next-themes';
 import { ErrorBoundary } from '@/components/error-boundary';
 import { Toaster } from 'sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -18,6 +19,7 @@ import PinLoginPage from '@/pages/pin-login';
 import DashboardPage from '@/pages/dashboard';
 import ProductsPage from '@/pages/products';
 import BouquetsPage from '@/pages/bouquets';
+import DeliveriesPage from '@/pages/deliveries';
 import MovementsPage from '@/pages/movements';
 import AnalyticsPage from '@/pages/analytics';
 import AssistantPage from '@/pages/assistant';
@@ -47,6 +49,7 @@ function Router() {
           <Route path="/" component={DashboardPage} />
           <Route path="/products" component={ProductsPage} />
           <Route path="/bouquets" component={BouquetsPage} />
+          <Route path="/deliveries" component={DeliveriesPage} />
           <Route path="/movements" component={MovementsPage} />
           <Route path="/analytics" component={AnalyticsPage} />
           <Route path="/assistant" component={AssistantPage} />
@@ -103,14 +106,25 @@ function AuthenticatedApp() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AuthenticatedApp />
-        </WouterRouter>
-        <Toaster richColors position="top-right" />
-      </TooltipProvider>
-    </QueryClientProvider>
+    <ThemeProvider
+      attribute="class"
+      // По умолчанию — как в системе: планшет в зале и телефон владельца могут быть
+      // настроены по-разному, и навязывать им одно и то же незачем.
+      defaultTheme="system"
+      enableSystem
+      // Ключ читает и скрипт в index.html, который ставит тему до загрузки приложения.
+      storageKey="florasklad-theme"
+      disableTransitionOnChange
+    >
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
+            <AuthenticatedApp />
+          </WouterRouter>
+          <Toaster richColors position="top-right" />
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

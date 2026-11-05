@@ -123,7 +123,7 @@ export function InvoiceDraftCard({
   }
 
   return (
-    <div className="w-full rounded-xl border bg-card shadow-sm">
+    <div className="w-full rounded-lg border bg-card shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
@@ -157,7 +157,7 @@ export function InvoiceDraftCard({
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   {matched ? (
-                    <span className="inline-flex items-center gap-1 text-green-700">
+                    <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
                       <Check className="h-3 w-3" />
                       {item.productName ?? catalogName}
                     </span>
@@ -167,13 +167,13 @@ export function InvoiceDraftCard({
                       Будет создан товар «{state.newProduct?.name}»
                     </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1 text-amber-600">
+                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
                       <AlertTriangle className="h-3 w-3" />
                       Не найден в каталоге — выберите товар или создайте новый
                     </span>
                   )}
                   {(item.issues ?? []).map((issue) => (
-                    <span key={issue} className="text-amber-600">· {issue}</span>
+                    <span key={issue} className="text-amber-600 dark:text-amber-400">· {issue}</span>
                   ))}
                 </div>
               </div>
@@ -263,7 +263,7 @@ export function InvoiceDraftCard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3">
         <div className="text-xs text-muted-foreground">
           {status === "applied" ? (
-            <span className="inline-flex items-center gap-1 text-green-700">
+            <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
               <Check className="h-3.5 w-3.5" />
               Приход проведён{appliedCount ? `: ${appliedCount} из ${draft.items.length} поз.` : ""}
             </span>

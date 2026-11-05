@@ -60,7 +60,7 @@ export function BouquetProductionDialog({
               const cost = batch.calculatedCost * batch.quantity
               const profit = revenue - cost
               return (
-                <div key={batch.id} className="rounded-xl border bg-card p-3">
+                <div key={batch.id} className="rounded-lg border bg-card p-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <History className="h-4 w-4 text-muted-foreground" />

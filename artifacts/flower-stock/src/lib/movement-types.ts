@@ -23,19 +23,19 @@ export type MovementTypeDetails = {
 export function getMovementTypeDetails(type: string): MovementTypeDetails {
   switch (type) {
     case "receipt":
-      return { label: "Приход", color: "text-green-600", bg: "bg-green-500/10", icon: ArrowDownRight, incoming: true }
+      return { label: "Приход", color: "text-green-800 dark:text-green-400", bg: "bg-green-500/10", icon: ArrowDownRight, incoming: true }
     case "expense":
-      return { label: "Продажа", color: "text-blue-600", bg: "bg-blue-500/10", icon: ArrowUpRight, incoming: false }
+      return { label: "Продажа", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10", icon: ArrowUpRight, incoming: false }
     case "writeoff":
       return { label: "Списание", color: "text-destructive", bg: "bg-destructive/10", icon: XCircle, incoming: false }
     case "production_input":
       // «Сборка» — так эту строку создаёт производство букета; кнопки для такого
       // расхода в операциях нет, но в истории он остаётся.
-      return { label: "Сборка", color: "text-orange-600", bg: "bg-orange-500/10", icon: PackageMinus, incoming: false }
+      return { label: "Сборка", color: "text-orange-700 dark:text-orange-400", bg: "bg-orange-500/10", icon: PackageMinus, incoming: false }
     case "production_output":
-      return { label: "Готовый букет", color: "text-purple-600", bg: "bg-purple-500/10", icon: PackagePlus, incoming: true }
+      return { label: "Готовый букет", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10", icon: PackagePlus, incoming: true }
     default:
-      return { label: type, color: "text-gray-600", bg: "bg-gray-100", icon: ArrowUpRight, incoming: false }
+      return { label: type, color: "text-gray-600 dark:text-gray-300", bg: "bg-gray-100 dark:bg-gray-500/15", icon: ArrowUpRight, incoming: false }
   }
 }
 

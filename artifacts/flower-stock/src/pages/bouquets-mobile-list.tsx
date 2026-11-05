@@ -20,7 +20,7 @@ export function BouquetsMobileList({ bouquets, onProduce, onEdit, onHistory }: P
   return (
     <div className="space-y-3">
       {bouquets.map((bouquet) => (
-        <div key={bouquet.id} className="rounded-xl border bg-card p-3 shadow-sm">
+        <div key={bouquet.id} className="rounded-lg border bg-card p-3 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <span className="font-medium leading-snug">{bouquet.name}</span>
             <div className="shrink-0 text-right">

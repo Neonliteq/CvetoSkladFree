@@ -362,6 +362,12 @@ export function describeClarification(clarification: Clarification): string {
     );
   }
   const options = clarification.options.map((option) => `«${option.name}»`).join(", ");
+  // Один вариант — это не «несколько товаров». Иначе человек ищет выбор там, где его нет, и
+  // уточняет то, что и так однозначно: «подходит несколько товаров: «Гипсофила белая»».
+  if (clarification.options.length === 1) {
+    const [only] = clarification.options;
+    return `«${clarification.asked}» — похоже на «${only.name}» (${only.stock} ${only.unit}). Подтвердить?`;
+  }
   return `«${clarification.asked}» — подходит несколько товаров: ${options}. Какой выбрать?`;
 }
 

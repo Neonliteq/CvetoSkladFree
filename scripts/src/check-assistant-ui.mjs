@@ -231,7 +231,9 @@ const readCards = (cdp) =>
     `(() => {
       const headings = [...document.querySelectorAll('span')].filter((s) => s.textContent === 'Разбор команды');
       return headings.map((heading) => {
-        const root = heading.closest('div.rounded-xl');
+        // Признак карточки — атрибут, а не класс оформления: смена скруглений ломала проверку, не
+  // ломая интерфейс. Именно так и случилось при переходе на строгие углы.
+  const root = heading.closest('[data-testid="assistant-plan-card"]');
         if (!root) return null;
         const buttons = [...root.querySelectorAll('button')].map((b) => ({
           label: (b.textContent ?? '').replace(/\\s+/g, ' ').trim(),
@@ -530,7 +532,7 @@ try {
     cdp,
     `(() => {
       const headings = [...document.querySelectorAll('span')].filter((s) => s.textContent === 'Разбор команды');
-      const root = headings[headings.length - 1]?.closest('div.rounded-xl');
+      const root = headings[headings.length - 1]?.closest('[data-testid="assistant-plan-card"]');
       if (!root) return null;
       const buttons = [...root.querySelectorAll('button')].map((b) => ({
         label: (b.textContent ?? '').replace(/\\s+/g, ' ').trim(),

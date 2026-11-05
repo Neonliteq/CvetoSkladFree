@@ -427,6 +427,179 @@ export interface MovementInput {
   cutDate?: string;
 }
 
+export interface BulkReceiptPosition {
+  /** Товар из каталога */
+  productId: number;
+  /**
+     * Количество в единицах товара
+     * @exclusiveMinimum 0
+     */
+  quantity: number;
+  /**
+     * Закупочная цена за единицу
+     * @minimum 0
+     */
+  unitPrice?: number;
+  /**
+     * Наценка позиции
+     * @minimum 0
+     * @maximum 1000
+     */
+  markupPercent?: number;
+}
+
+export interface BulkReceiptInput {
+  /**
+     * Позиции накладной; одинаковый товар можно указать дважды — это будут две партии
+     * @minItems 1
+     * @maxItems 50
+     */
+  positions: BulkReceiptPosition[];
+  /**
+     * Номер накладной
+     * @nullable
+     */
+  orderNumber?: string | null;
+  /**
+     * Дата прихода; пусто — сегодня
+     * @nullable
+     */
+  batchArrivalDate?: string | null;
+  /**
+     * Комментарий к накладной
+     * @nullable
+     */
+  reason?: string | null;
+  /** Не учитывать всю накладную в статистике */
+  excludeFromStats?: boolean;
+}
+
+export interface BulkExpensePosition {
+  /** Товар из каталога */
+  productId: number;
+  /**
+     * Количество в единицах товара
+     * @exclusiveMinimum 0
+     */
+  quantity: number;
+  /**
+     * Цена продажи за единицу
+     * @minimum 0
+     */
+  saleUnitPrice?: number;
+  /** Из какой партии списать; пусто — по FIFO */
+  receiptMovementId?: number;
+}
+
+export interface BulkExpenseInput {
+  /**
+     * Позиции продажи; одинаковый товар можно указать дважды — спишется из разных партий
+     * @minItems 1
+     * @maxItems 50
+     */
+  positions: BulkExpensePosition[];
+  /**
+     * Комментарий к продаже
+     * @nullable
+     */
+  reason?: string | null;
+  /** Не учитывать всю продажу в статистике */
+  excludeFromStats?: boolean;
+}
+
+export interface BulkWriteoffPosition {
+  /** Товар из каталога */
+  productId: number;
+  /**
+     * Количество в единицах товара
+     * @exclusiveMinimum 0
+     */
+  quantity: number;
+  /**
+     * Своя причина списания для строки
+     * @nullable
+     */
+  reason?: string | null;
+  /** Из какой партии списать; пусто — по FIFO */
+  receiptMovementId?: number;
+}
+
+export interface BulkWriteoffInput {
+  /**
+     * Позиции списания; одинаковый товар можно указать дважды — спишется из разных партий
+     * @minItems 1
+     * @maxItems 50
+     */
+  positions: BulkWriteoffPosition[];
+  /**
+     * Общая причина списания
+     * @nullable
+     */
+  reason?: string | null;
+  /** Не учитывать всё списание в статистике */
+  excludeFromStats?: boolean;
+}
+
+export interface Delivery {
+  /** Идентификатор поставки для запроса позиций */
+  key: string;
+  /** Когда провели приход */
+  deliveredAt: string;
+  /**
+     * Дата прихода — как записана в накладной
+     * @nullable
+     */
+  arrivedAt?: string | null;
+  /**
+     * Номер накладной, если его указали
+     * @nullable
+     */
+  orderNumber?: string | null;
+  /** Поставщики товаров поставки */
+  suppliers?: string[];
+  /** Названия позиций — чтобы узнать поставку в списке */
+  products?: string[];
+  /** Сколько позиций в поставке */
+  positions: number;
+  /** Сколько единиц всего */
+  quantity: number;
+  /** Сумма закупки */
+  cost: number;
+  /** @nullable */
+  createdBy?: number | null;
+  /**
+     * Кто провёл приход; null у старых операций без автора
+     * @nullable
+     */
+  createdByName?: string | null;
+}
+
+export interface DeliveryList {
+  items: Delivery[];
+  /** Сколько поставок всего под фильтром */
+  total: number;
+}
+
+export interface DeliveryDetail {
+  delivery: Delivery;
+  /** Позиции поставки */
+  movements: Movement[];
+}
+
+export interface BulkMovementResult {
+  /** Созданные операции — по одной на строку */
+  movements: Movement[];
+  /** Сколько единиц всего */
+  totalQuantity: number;
+  /** Сумма закупки для прихода, себестоимость расхода для продажи и списания */
+  totalCost: number;
+  /**
+     * Выручка; есть только у продажи, у прихода и списания — null
+     * @nullable
+     */
+  totalRevenue?: number | null;
+}
+
 export interface ReceiptUpdate {
   /** @exclusiveMinimum 0 */
   quantity?: number;
@@ -1322,6 +1495,31 @@ export const ListMovementsDirection = {
   asc: 'asc',
   desc: 'desc',
 } as const;
+
+export type ListDeliveriesParams = {
+/**
+ * @minimum 1
+ * @maximum 100
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+/**
+ * Поиск по номеру накладной, товару и поставщику
+ * @maxLength 100
+ */
+search?: string;
+/**
+ * Дата прихода с
+ */
+from?: string;
+/**
+ * Дата прихода по
+ */
+to?: string;
+};
 
 export type GetMovementAnalyticsParams = {
 from?: string;

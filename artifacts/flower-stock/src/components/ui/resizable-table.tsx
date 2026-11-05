@@ -108,7 +108,7 @@ export function ResizableTable({
     // доходит.
     <div ref={areaRef} className="relative w-fit max-w-full">
       <div
-        className={`overflow-x-auto rounded-xl border bg-card shadow-sm ${
+        className={`overflow-x-auto rounded-lg border bg-card shadow-sm ${
           isResizing ? "select-none" : ""
         }`}
       >

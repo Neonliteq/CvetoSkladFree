@@ -1,8 +1,9 @@
 import type { ComponentType } from "react"
 import { Link, useLocation } from "wouter"
-import { LayoutDashboard, Package, ArrowRightLeft, Sparkles, Sprout, Gift, Activity, Download, Users, Settings, LogOut, Loader2 } from "lucide-react"
+import { LayoutDashboard, Package, ArrowRightLeft, Sparkles, Sprout, Gift, Activity, Download, Users, Settings, LogOut, Loader2, Truck } from "lucide-react"
 import { useInstallPrompt } from "@/hooks/use-pwa"
 import { useCurrentUser } from "@/lib/auth-context"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 export type NavItem = {
   href: string
@@ -16,6 +17,7 @@ export type NavItem = {
 export const navItems: NavItem[] = [
   { href: "/", icon: LayoutDashboard, label: "Сводка" },
   { href: "/products", icon: Package, label: "Склад" },
+  { href: "/deliveries", icon: Truck, label: "Поставки" },
   { href: "/bouquets", icon: Gift, label: "Букеты" },
   { href: "/movements", icon: ArrowRightLeft, label: "Операции" },
   { href: "/analytics", icon: Activity, label: "Аналитика" },
@@ -94,7 +96,7 @@ export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="flex-1 space-y-2 px-4 py-6">
-      <div className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/50">
+      <div className="mb-4 px-2 text-xs font-semibold uppercase tracking-wider text-sidebar-foreground/70">
         Меню
       </div>
       {visibleItems.map((item) => (
@@ -141,6 +143,12 @@ export function SidebarUser({ onNavigate }: { onNavigate?: () => void }) {
           className="mb-2"
         />
       ))}
+
+      {/* Тема — свойство устройства, а не рабочего раздела: на планшете в зале и на
+          телефоне владельца она может быть разной. */}
+      <div className="mb-2">
+        <ThemeToggle />
+      </div>
 
       <div className="flex items-center gap-3 px-2">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sidebar-primary font-bold text-sidebar-primary-foreground">

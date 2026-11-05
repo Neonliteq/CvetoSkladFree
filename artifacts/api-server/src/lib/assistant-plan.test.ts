@@ -152,3 +152,21 @@ test("описания понятны пользователю", () => {
   assert.match(text, /роза красная/);
   assert.match(text, /подходит несколько товаров/);
 });
+test("при единственном варианте не говорим «подходит несколько товаров»", () => {
+  // Так было до правки: под запрос «гипсофилы» находился ровно один товар, а текст
+  // предлагал «выбрать» — человек искал выбор там, где его нет.
+  const text = describeClarification({
+    asked: "гипсофилы",
+    message: null,
+    options: [
+      { id: 7, name: "Гипсофила белая", stock: 16, unit: "упак." },
+    ],
+    selectedProductId: null,
+  } as Parameters<typeof describeClarification>[0]);
+
+  assert.match(text, /гипсофилы/);
+  assert.match(text, /похоже на «Гипсофила белая»/);
+  assert.match(text, /Подтвердить/);
+  assert.doesNotMatch(text, /несколько товаров/);
+  assert.doesNotMatch(text, /Какой выбрать/);
+});

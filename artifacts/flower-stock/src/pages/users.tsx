@@ -163,7 +163,7 @@ export default function UsersPage() {
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
             Сотрудники
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -265,7 +265,7 @@ export default function UsersPage() {
       </Card>
 
       {isLoading ? (
-        <div className="rounded-xl border bg-card py-12 text-center text-muted-foreground">
+        <div className="rounded-lg border bg-card py-12 text-center text-muted-foreground">
           Загрузка...
         </div>
       ) : (

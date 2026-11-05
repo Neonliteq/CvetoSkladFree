@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Response } from "express";
 import { and, asc, desc, eq, gt, ilike, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import {
   assistantConversationsTable,
@@ -13,6 +13,12 @@ import {
 import {
   ApplyAssistantCommandPlanBody,
   ApplyAssistantCommandPlanResponse,
+  CreateBulkExpenseBody,
+  CreateBulkExpenseResponse,
+  CreateBulkReceiptBody,
+  CreateBulkReceiptResponse,
+  CreateBulkWriteoffBody,
+  CreateBulkWriteoffResponse,
   CreateMovementBody,
   CreateMovementResponse,
   CreateProductBody,
@@ -20,6 +26,10 @@ import {
   GetAssistantConversationParams,
   GetAssistantConversationResponse,
   GetDashboardResponse,
+  GetDeliveryParams,
+  GetDeliveryResponse,
+  ListDeliveriesQueryParams,
+  ListDeliveriesResponse,
   ListMovementsQueryParams,
   ListMovementsResponse,
   ListProductsQueryParams,
@@ -43,8 +53,12 @@ import {
 } from "@workspace/api-zod";
 import { consumeBatchesFifo, ensureBatchBalances } from "../lib/inventory-batches";
 import { applyAssistantPlan, planAssistantCommand } from "../lib/assistant";
+import { logger } from "../lib/logger";
 import { requireRole } from "../middlewares/auth";
 import {
+  addBulkExpense,
+  addBulkReceipt,
+  addBulkWriteoff,
   addMovement,
   applyMovement,
   assertAliasesAvailable,
@@ -415,6 +429,307 @@ router.post("/movements", async (req, res): Promise<void> => {
   }
 });
 
+/**
+ * Общая часть ответа массового документа.
+ *
+ * Итоги считаются **здесь**, а не в транзакции: у расхода себестоимость складывается из
+ * партий, и появляется она только после `withBatchAllocations`. В транзакции её взять
+ * неоткуда — попытка даёт ноль, и в ответе оказалась бы «себестоимость 0» при успешном
+ * документе.
+ *
+ * Ошибка сборки ответа — это 500, а не 400. Документ к этому моменту уже записан, и 400
+ * пригласил бы повторить его, задвоив операции.
+ */
+async function sendBulkResult(
+  res: Response,
+  documentName: string,
+  kind: "receipt" | "expense" | "writeoff",
+  result: { movements: Parameters<typeof withBatchAllocations>[0] },
+  validate: (value: unknown) => unknown,
+): Promise<void> {
+  try {
+    const movements = await withBatchAllocations(result.movements);
+    const totalQuantity = movements.reduce((sum, movement) => sum + movement.quantity, 0);
+    const totalCost = movements.reduce((sum, movement) => sum + movement.totalCost, 0);
+    // Выручка есть только у продажи: у прихода и списания продажной цены нет.
+    const totalRevenue =
+      kind === "expense"
+        ? movements.reduce(
+            (sum, movement) => sum + movement.quantity * (movement.saleUnitPrice ?? 0),
+            0,
+          )
+        : null;
+    res.status(201).json(
+      validate({
+        movements,
+        totalQuantity,
+        totalCost: money(totalCost),
+        totalRevenue: totalRevenue === null ? null : money(totalRevenue),
+      }),
+    );
+  } catch (error) {
+    logger.error(
+      { err: error, movements: result.movements.map((movement) => movement.id) },
+      `Bulk ${documentName} applied but response could not be built`,
+    );
+    res.status(500).json({
+      error: `${documentName} проведена, но ответ собрать не удалось. НЕ повторяйте — проверьте склад и сообщите о проблеме.`,
+    });
+  }
+}
+
+/** Приход нескольких товаров одной накладной. */
+router.post("/movements/bulk-receipt", async (req, res): Promise<void> => {
+  const parsed = CreateBulkReceiptBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  let result;
+  try {
+    result = await addBulkReceipt(parsed.data, req.user?.id);
+  } catch (error) {
+    // Сюда попадают только ошибки самой накладной: транзакция откатилась, ничего не записано.
+    res.status(400).json({ error: error instanceof Error ? error.message : "Ошибка операции" });
+    return;
+  }
+  await sendBulkResult(res, "Накладная", "receipt", result, (value) =>
+    CreateBulkReceiptResponse.parse(value),
+  );
+});
+
+/** Продажа нескольких товаров сразу: одна транзакция на весь документ. */
+router.post("/movements/bulk-expense", async (req, res): Promise<void> => {
+  const parsed = CreateBulkExpenseBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  let result;
+  try {
+    result = await addBulkExpense(parsed.data, req.user?.id);
+  } catch (error) {
+    // Не хватило остатка или товар не найден — не продано ничего.
+    res.status(400).json({ error: error instanceof Error ? error.message : "Ошибка операции" });
+    return;
+  }
+  await sendBulkResult(res, "Продажа", "expense", result, (value) =>
+    CreateBulkExpenseResponse.parse(value),
+  );
+});
+
+/** Списание нескольких товаров сразу: одна транзакция на весь документ. */
+router.post("/movements/bulk-writeoff", async (req, res): Promise<void> => {
+  const parsed = CreateBulkWriteoffBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  let result;
+  try {
+    result = await addBulkWriteoff(parsed.data, req.user?.id);
+  } catch (error) {
+    // Не хватило остатка или товар не найден — не списано ничего.
+    res.status(400).json({ error: error instanceof Error ? error.message : "Ошибка операции" });
+    return;
+  }
+  await sendBulkResult(res, "Списание", "writeoff", result, (value) =>
+    CreateBulkWriteoffResponse.parse(value),
+  );
+});
+
+/**
+ * Поставка — это приход, проведённый в один момент одним человеком.
+ *
+ * Позиции одной накладной пишутся одной транзакцией, поэтому `created_at` у них совпадает до
+ * микросекунды. По этой паре (время, автор) и собирается документ — так же выглядят старые
+ * приходы, сделанные до появления списка, и ничего не нужно переносить в базу.
+ *
+ * Ключ поставки — base64 от «время|автор». Он непрозрачен для интерфейса и не ломается, если
+ * формат когда-нибудь изменится: клиент просто передаёт то, что получил в списке.
+ */
+const encodeDeliveryKey = (deliveredAt: Date | string, createdBy: number | null) =>
+  Buffer.from(`${new Date(deliveredAt).toISOString()}|${createdBy ?? 0}`).toString("base64url");
+
+function decodeDeliveryKey(key: string): { deliveredAt: string; createdBy: number | null } | null {
+  try {
+    const [deliveredAt, createdBy] = Buffer.from(key, "base64url").toString("utf8").split("|");
+    if (!deliveredAt || !createdBy) return null;
+    const parsed = new Date(deliveredAt);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return { deliveredAt: parsed.toISOString(), createdBy: Number(createdBy) || null };
+  } catch {
+    return null;
+  }
+}
+
+/** Строка даты из базы: `date` приходит и строкой, и объектом Date — приводим к `гггг-мм-дд`. */
+const deliveryDateOnly = (value: unknown): string | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+};
+
+/**
+ * Список поставок: свежие сверху, с поиском по номеру, товару и поставщику.
+ *
+ * Позиции в ответ не входят — только сводка по документу. Состав запрашивается отдельно и
+ * только для той поставки, которую открыли: иначе список на сотню документов приносил бы
+ * тысячи строк.
+ */
+router.get("/deliveries", async (req, res): Promise<void> => {
+  // Даты приходят строками, а сгенерированная схема ждёт Date — приводим сами, как в
+  // аналитике: иначе «ожидалось date, получено string» на любом фильтре по периоду.
+  const parsed = ListDeliveriesQueryParams.safeParse({
+    ...req.query,
+    from:
+      typeof req.query.from === "string" ? new Date(req.query.from) : req.query.from,
+    to: typeof req.query.to === "string" ? new Date(req.query.to) : req.query.to,
+  });
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.message });
+    return;
+  }
+  const limit = parsed.data.limit ?? 50;
+  const offset = parsed.data.offset ?? 0;
+  const search = parsed.data.search?.trim();
+  const from = parsed.data.from ? dateOnly(parsed.data.from) : undefined;
+  const to = parsed.data.to ? dateOnly(parsed.data.to) : undefined;
+
+  const filters = [sql`m.type = 'receipt'`];
+  if (search) {
+    const like = `%${search}%`;
+    filters.push(
+      sql`(coalesce(m.order_number, '') ilike ${like} or p.name ilike ${like} or coalesce(p.supplier, '') ilike ${like})`,
+    );
+  }
+  if (from) filters.push(sql`m.batch_arrival_date >= ${from}`);
+  if (to) filters.push(sql`m.batch_arrival_date <= ${to}`);
+  const where = sql.join(filters, sql` and `);
+
+  const rows = await db.execute(sql`
+    select
+      m.created_at as delivered_at,
+      m.created_by,
+      u.display_name as created_by_name,
+      min(m.batch_arrival_date) as arrived_at,
+      max(m.order_number) as order_number,
+      count(*)::int as positions,
+      sum(m.quantity)::float8 as quantity,
+      sum(m.quantity * m.unit_price)::float8 as cost,
+      array_remove(array_agg(distinct p.supplier), null) as suppliers,
+      array_agg(p.name order by p.name) as products
+    from stock_movements m
+    join products p on p.id = m.product_id
+    left join users u on u.id = m.created_by
+    where ${where}
+    group by m.created_at, m.created_by, u.display_name
+    order by m.created_at desc
+    limit ${limit} offset ${offset}
+  `);
+  const counted = await db.execute(sql`
+    select count(*)::int as total
+    from (
+      select 1
+      from stock_movements m
+      join products p on p.id = m.product_id
+      where ${where}
+      group by m.created_at, m.created_by
+    ) grouped
+  `);
+
+  const items = (rows.rows as Array<Record<string, unknown>>).map((row) => ({
+    key: encodeDeliveryKey(row.delivered_at as string, (row.created_by as number | null) ?? null),
+    deliveredAt: new Date(row.delivered_at as string).toISOString(),
+    arrivedAt: deliveryDateOnly(row.arrived_at),
+    orderNumber: (row.order_number as string | null) ?? null,
+    suppliers: (row.suppliers as string[] | null) ?? [],
+    products: ((row.products as string[] | null) ?? []).slice(0, 4),
+    positions: Number(row.positions ?? 0),
+    quantity: Number(row.quantity ?? 0),
+    cost: money(Number(row.cost ?? 0)),
+    createdBy: (row.created_by as number | null) ?? null,
+    createdByName: (row.created_by_name as string | null) ?? null,
+  }));
+
+  res.json(
+    ListDeliveriesResponse.parse({
+      items,
+      total: Number((counted.rows as Array<{ total: number }>)[0]?.total ?? 0),
+    }),
+  );
+});
+
+/** Позиции одной поставки: те же строки, что видны в истории операций, с партиями. */
+router.get("/deliveries/:key", async (req, res): Promise<void> => {
+  const parsed = GetDeliveryParams.safeParse(req.params);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Неверный идентификатор поставки" });
+    return;
+  }
+  const decoded = decodeDeliveryKey(parsed.data.key);
+  if (!decoded) {
+    res.status(404).json({ error: "Поставка не найдена" });
+    return;
+  }
+  // Без псевдонима `m`: этот запрос идёт через построитель Drizzle, а не через `sql` с
+  // join'ами, и ссылка на «m» падала с «missing FROM-clause entry for table m».
+  const authorFilter = decoded.createdBy
+    ? eq(movementsTable.createdBy, decoded.createdBy)
+    : isNull(movementsTable.createdBy);
+  const rows = await db
+    .select()
+    .from(movementsTable)
+    .where(
+      and(
+        eq(movementsTable.type, "receipt"),
+        // В базе время хранится с микросекундами, а JS Date знает только миллисекунды:
+        // точное сравнение не находило ничего. Сравниваем с округлением до миллисекунд —
+        // этого достаточно, чтобы отличить документы друг от друга.
+        sql`date_trunc('milliseconds', ${movementsTable.createdAt}) = ${decoded.deliveredAt}::timestamptz`,
+        authorFilter,
+      ),
+    )
+    .orderBy(asc(movementsTable.id));
+  if (!rows.length) {
+    res.status(404).json({ error: "Поставка не найдена" });
+    return;
+  }
+  const movements = await withBatchAllocations(rows);
+  const first = movements[0];
+  // Поставщик — свойство товара, а не операции: берём его у товаров этой поставки.
+  const supplierRows = await db
+    .select({ supplier: productsTable.supplier })
+    .from(productsTable)
+    .where(inArray(productsTable.id, [...new Set(movements.map((movement) => movement.productId))]));
+  const suppliers = [
+    ...new Set(
+      supplierRows
+        .map((row) => row.supplier)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  res.json(
+    GetDeliveryResponse.parse({
+      delivery: {
+        key: parsed.data.key,
+        deliveredAt: new Date(first.createdAt).toISOString(),
+        arrivedAt: first.batchArrivalDate ?? null,
+        orderNumber: first.orderNumber ?? null,
+        suppliers,
+        products: movements.slice(0, 4).map((movement) => movement.productName),
+        positions: movements.length,
+        quantity: movements.reduce((sum, movement) => sum + movement.quantity, 0),
+        cost: money(
+          movements.reduce((sum, movement) => sum + movement.quantity * movement.unitPrice, 0),
+        ),
+        createdBy: first.createdBy ?? null,
+        createdByName: first.createdByName ?? null,
+      },
+      movements,
+    }),
+  );
+});
 router.get("/dashboard", async (_req, res): Promise<void> => {
   const allProducts = await db.select().from(productsTable).orderBy(asc(productsTable.name));
   // Архивные товары не должны всплывать нигде: их убрали из работы, и «низкий

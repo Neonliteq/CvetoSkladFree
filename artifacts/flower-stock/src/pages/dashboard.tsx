@@ -2,7 +2,22 @@ import { useGetDashboard } from "@workspace/api-client-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { formatCurrency, formatDateTime } from "@/lib/utils"
-import { AlertCircle, Package, TrendingDown, Clock, Flower2 } from "lucide-react"
+import { getMovementTypeDetails, signedQuantity } from "@/lib/movement-types"
+import { Link } from "wouter"
+import { BulkMovementDialog } from "@/pages/bulk-movement-dialog"
+import { MetricCard } from "@/components/metric-card"
+import { AlertCircle, CheckCircle2, Clock, Flower2, Package, TrendingDown, Wallet } from "lucide-react"
+
+/**
+ * Сводка отвечает на один вопрос: **что делать сегодня**.
+ *
+ * Поэтому сверху — проблемы (просрочка и дефицит) с количеством и действием, а не сводные
+ * числа. Раньше первым шли четыре карточки «всего товаров / единиц / заканчиваются / сроки»,
+ * и пустая карточка «Всё в порядке, дефицита нет» занимала пол-экрана, отодвигая то, что
+ * действительно требует внимания.
+ *
+ * Порядок блоков намеренный: проблемы → состояние склада → последние операции.
+ */
 
 export default function DashboardPage() {
   const { data: dashboard, isLoading } = useGetDashboard()
@@ -10,11 +25,14 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="space-y-6">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Сводка</h1>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader className="h-24 bg-muted/50" />
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Сводка</h1>
+          <p className="mt-1 text-sm text-muted-foreground">Оценка состояния склада на сегодня</p>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+          {[...Array(4)].map((_, index) => (
+            <Card key={index} className="animate-pulse">
+              <CardContent className="h-20" />
             </Card>
           ))}
         </div>
@@ -22,169 +40,199 @@ export default function DashboardPage() {
     )
   }
 
-  if (!dashboard) return null;
+  if (!dashboard) return null
+
+  // Просрочка и «истекает скоро» приходят одним списком: сервер отдаёт все партии со
+  // сроком в пределах трёх дней, включая уже просроченные (у них `daysLeft` отрицательный).
+  // Разделяем на клиенте, потому что смысл у них разный: просрочку списывают, истекающую —
+  // продают быстрее.
+  const expired = dashboard.expiring.filter((batch) => batch.daysLeft < 0)
+  const soon = dashboard.expiring.filter((batch) => batch.daysLeft >= 0)
+  const expiredQuantity = expired.reduce((sum, batch) => sum + batch.quantity, 0)
+  const hasProblems = expired.length > 0 || dashboard.lowStock.length > 0
+
+  // Один товар может лежать двумя партиями с разным сроком — для списания складываем
+  // количество по товару, иначе в документе окажутся две строки одного товара.
+  const expiredByProduct = [...expired.reduce((map, batch) => {
+    const current = map.get(batch.productId) ?? { productId: batch.productId, quantity: 0 }
+    current.quantity += batch.quantity
+    map.set(batch.productId, current)
+    return map
+  }, new Map<number, { productId: number; quantity: number }>()).values()]
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Сводка</h1>
-          <p className="text-muted-foreground mt-1">Оценка состояния склада на сегодня</p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Сводка</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Оценка состояния склада на сегодня</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="hover-elevate transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Всего товаров</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboard.totalProducts}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Активных позиций
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="hover-elevate transition-all">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Единиц на складе</CardTitle>
-            <Flower2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{dashboard.totalUnits}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Стеблей, штук, упаковок
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="hover-elevate transition-all border-destructive/20 bg-destructive/5">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-destructive">Заканчиваются</CardTitle>
-            <TrendingDown className="h-4 w-4 text-destructive" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">{dashboard.lowStockCount}</div>
-            <p className="text-xs text-destructive/80 mt-1">
-              Позиций ниже минимума
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="hover-elevate transition-all border-orange-500/20 bg-orange-500/5">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-orange-600">Сроки годности</CardTitle>
-            <Clock className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{dashboard.expiringCount}</div>
-            <p className="text-xs text-orange-600/80 mt-1">
-              Партий истекают скоро
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-destructive" />
-              Низкий остаток
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboard.lowStock.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Всё в порядке, дефицита нет.</p>
-            ) : (
-              <div className="space-y-4">
-                {dashboard.lowStock.slice(0, 5).map(item => (
-                  <div key={item.id} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{item.name}</p>
-                      <p className="text-xs text-muted-foreground">{item.variety || item.category}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-destructive">{item.currentStock} {item.unit}</p>
-                      <p className="text-xs text-muted-foreground">Мин: {item.minimumStock}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-orange-500" />
-              Истекающий срок годности
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {dashboard.expiring.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Нет партий с истекающим сроком.</p>
-            ) : (
-              <div className="space-y-4">
-                {dashboard.expiring.slice(0, 5).map(batch => (
-                  <div key={`${batch.productId}-${batch.expiresAt}`} className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{batch.productName}</p>
-                      <p className="text-xs text-muted-foreground">Кол-во: {batch.quantity}</p>
-                    </div>
-                    <div className="text-right flex flex-col items-end gap-1">
-                      <Badge variant={batch.daysLeft <= 1 ? "destructive" : "warning"}>
-                        {batch.daysLeft === 0 ? 'Сегодня' : `Осталось ${batch.daysLeft} дн.`}
+      {/* Главный блок: что требует внимания. Если проблем нет — одна спокойная строка
+          вместо двух пустых карточек на пол-экрана. */}
+      {hasProblems ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {expired.length > 0 && (
+            <Card className="border-destructive/30">
+              <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  Просрочено
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {expired.length} {expired.length === 1 ? "партия" : "партии"} · {expiredQuantity} ед.
+                </span>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="divide-y divide-border/60">
+                  {expired.slice(0, 4).map((batch) => (
+                    <div
+                      key={`${batch.productId}-${batch.expiresAt}`}
+                      className="flex items-center justify-between gap-3 py-2 first:pt-0"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/products?product=${batch.productId}`}
+                          className="block truncate font-medium hover:text-primary hover:underline"
+                          title="Открыть товар на складе"
+                        >
+                          {batch.productName}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">{batch.quantity} ед. в партии</p>
+                      </div>
+                      <Badge variant="destructive" className="shrink-0 tabular-nums">
+                        просрочено {Math.abs(batch.daysLeft)} дн.
                       </Badge>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                  {expired.length > 4 && (
+                    <p className="pt-2 text-xs text-muted-foreground">
+                      и ещё {expired.length - 4} — в истории операций
+                    </p>
+                  )}
+                </div>
+                <div className="flex justify-end">
+                  <BulkMovementDialog
+                    initialKind="writeoff"
+                    initialPositions={expiredByProduct}
+                    initialReason="Просроченный товар"
+                    triggerLabel="Списать просроченное"
+                    triggerVariant="destructive"
+                    triggerClassName="h-11 md:h-9"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {dashboard.lowStock.length > 0 && (
+            <Card className="border-orange-500/30">
+              <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0 pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-semibold text-orange-700 dark:text-orange-400">
+                  <TrendingDown className="h-4 w-4" />
+                  Заканчивается
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">{dashboard.lowStockCount} поз.</span>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-border/60">
+                  {dashboard.lowStock.slice(0, 4).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-3 py-2 first:pt-0">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/products?product=${item.id}`}
+                          className="block truncate font-medium hover:text-primary hover:underline"
+                          title="Открыть товар на складе"
+                        >
+                          {item.name}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {item.variety || item.category}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-right text-sm font-semibold tabular-nums text-orange-700 dark:text-orange-400">
+                        {item.currentStock} {item.unit}
+                        <span className="ml-1 text-xs font-normal text-muted-foreground">
+                          из {item.minimumStock}
+                        </span>
+                      </p>
+                    </div>
+                  ))}
+                  {dashboard.lowStock.length > 4 && (
+                    <Link
+                      href="/products?lowStock=1"
+                      className="block pt-2 text-xs text-primary hover:underline"
+                    >
+                      и ещё {dashboard.lowStock.length - 4} — показать весь дефицит
+                    </Link>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      ) : (
+        <Card className="border-green-600/30 bg-green-600/5">
+          <CardContent className="flex items-center gap-3 p-4">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-700 dark:text-green-400" />
+            <p className="text-sm">
+              <span className="font-medium">Всё в порядке:</span> ни просроченных партий, ни
+              позиций ниже минимума.
+            </p>
           </CardContent>
         </Card>
+      )}
+
+      {/* Состояние склада: числа, по которым видно масштаб, но действовать по ним не нужно. */}
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+        <MetricCard
+          label="Товаров"
+          value={dashboard.totalProducts.toLocaleString("ru-RU")}
+          hint="Активных позиций"
+          icon={Package}
+        />
+        <MetricCard
+          label="Единиц на складе"
+          value={dashboard.totalUnits.toLocaleString("ru-RU")}
+          hint="Стеблей, штук, упаковок"
+          icon={Flower2}
+        />
+        <MetricCard
+          label="Стоимость склада"
+          value={formatCurrency(dashboard.inventoryValue)}
+          hint="По средней закупочной цене"
+          icon={Wallet}
+        />
+        <MetricCard
+          label="Истекает скоро"
+          value={soon.length}
+          hint={soon.length === 0 ? "В ближайшие три дня ничего" : "Партий в ближайшие три дня"}
+          icon={Clock}
+          tone={soon.length > 0 ? "warning" : "default"}
+        />
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Последние операции</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Последние операции</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {dashboard.recentMovements.slice(0, 5).map(movement => (
-              <div key={movement.id} className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0">
-                <div className="flex items-center gap-4">
-                  <div className={`w-2 h-2 rounded-full ${
-                    ['receipt', 'production_output'].includes(movement.type) ? 'bg-green-500' :
-                    ['expense', 'production_input'].includes(movement.type) ? 'bg-blue-500' :
-                    movement.type === 'writeoff' ? 'bg-destructive' : 'bg-gray-500'
-                  }`} />
-                  <div>
-                    <p className="font-medium">{movement.productName}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(movement.createdAt)}</p>
+          <div className="divide-y divide-border/60">
+            {dashboard.recentMovements.map((movement) => {
+              const details = getMovementTypeDetails(movement.type)
+              return (
+                <div key={movement.id} className="flex items-center justify-between gap-3 py-2 first:pt-0">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{movement.productName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatDateTime(movement.createdAt)} · {details.label}
+                    </p>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className={`font-bold ${
-                    ['receipt', 'production_output'].includes(movement.type) ? 'text-green-600' :
-                    ['expense', 'production_input'].includes(movement.type) ? 'text-blue-600' :
-                    movement.type === 'writeoff' ? 'text-destructive' : ''
-                  }`}>
-                    {['receipt', 'production_output'].includes(movement.type) ? '+' : '-'}{movement.quantity}
-                  </p>
-                  <p className="text-xs text-muted-foreground capitalize">
-                    {/* Подписи те же, что в истории операций: один тип не должен
-                        называться по-разному на двух экранах. */}
-                    {movement.type === 'receipt' ? 'Приход' :
-                     movement.type === 'expense' ? 'Продажа' :
-                     movement.type === 'writeoff' ? 'Списание' : 
-                     movement.type === 'production_input' ? 'Сборка' :
-                     movement.type === 'production_output' ? 'Готовый букет' :
-                     movement.type}
+                  <p className={`shrink-0 text-sm font-semibold tabular-nums ${details.color}`}>
+                    {signedQuantity(movement.type, movement.quantity)}
                   </p>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </CardContent>
       </Card>

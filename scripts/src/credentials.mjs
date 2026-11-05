@@ -7,4 +7,11 @@
  * используется значение по умолчанию из демо-данных сида.
  */
 export const adminUsername = process.env.AUTH_ROOT_USERNAME ?? "admin";
-export const adminPassword = process.env.AUTH_ROOT_PASSWORD ?? "florasklad2026";
+export const adminPassword = process.env.AUTH_ROOT_PASSWORD ?? "";
+
+if (!adminPassword) {
+  throw new Error(
+    "Задайте AUTH_ROOT_PASSWORD в .env — проверки входят под администратором магазина " +
+      "(см. README, раздел про быстрый старт).",
+  );
+}

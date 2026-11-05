@@ -86,7 +86,14 @@ const TableCell = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <td
     ref={ref}
-    className={cn("p-4 align-middle [&:has([role=checkbox])]:pr-0", className)}
+    className={cn(
+      // Плотные строки: 16px по вертикали давали 73px на строку — всего 12 строк на
+      // экране. Для склада, где за день просматривают сотни операций, это мало; 10px
+      // оставляют воздух, но вмещают заметно больше. Горизонтальные отступы прежние —
+      // иначе текст липнет к краю.
+      "px-4 py-2 align-middle [&:has([role=checkbox])]:pr-0",
+      className,
+    )}
     {...props}
   />
 ))

@@ -812,6 +812,351 @@ export const CreateMovementResponse = zod.object({
 })
 
 
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна (нет товара, нулевое количество, отрицательная цена), не проводится ничего. Одинаковый товар двумя строками создаёт две отдельные партии.
+ * @summary Приход нескольких товаров одной накладной
+ */
+export const createBulkReceiptBodyPositionsItemQuantityExclusiveMin = 0;
+
+export const createBulkReceiptBodyPositionsItemUnitPriceMin = 0;
+
+export const createBulkReceiptBodyPositionsItemMarkupPercentMin = 0;
+export const createBulkReceiptBodyPositionsItemMarkupPercentMax = 1000;
+
+export const createBulkReceiptBodyPositionsMax = 50;
+
+
+
+export const CreateBulkReceiptBody = zod.object({
+  "positions": zod.array(zod.object({
+  "productId": zod.number().describe('Товар из каталога'),
+  "quantity": zod.number().gt(createBulkReceiptBodyPositionsItemQuantityExclusiveMin).describe('Количество в единицах товара'),
+  "unitPrice": zod.number().min(createBulkReceiptBodyPositionsItemUnitPriceMin).optional().describe('Закупочная цена за единицу'),
+  "markupPercent": zod.number().min(createBulkReceiptBodyPositionsItemMarkupPercentMin).max(createBulkReceiptBodyPositionsItemMarkupPercentMax).optional().describe('Наценка позиции')
+})).min(1).max(createBulkReceiptBodyPositionsMax).describe('Позиции накладной; одинаковый товар можно указать дважды — это будут две партии'),
+  "orderNumber": zod.string().nullish().describe('Номер накладной'),
+  "batchArrivalDate": zod.coerce.date().nullish().describe('Дата прихода; пусто — сегодня'),
+  "reason": zod.string().nullish().describe('Комментарий к накладной'),
+  "excludeFromStats": zod.boolean().optional().describe('Не учитывать всю накладную в статистике')
+})
+
+export const createBulkReceiptResponseMovementsItemSaleUnitPriceMin = 0;
+
+export const createBulkReceiptResponseMovementsItemTotalCostMin = 0;
+
+export const createBulkReceiptResponseMovementsItemExcludeFromStatsDefault = false;
+export const createBulkReceiptResponseMovementsItemBatchAllocationsItemUnitPriceMin = 0;
+
+export const createBulkReceiptResponseMovementsItemBatchAllocationsItemLineCostMin = 0;
+
+
+
+export const CreateBulkReceiptResponse = zod.object({
+  "movements": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "type": zod.enum(['receipt', 'expense', 'writeoff', 'transfer', 'production_input', 'production_output']),
+  "quantity": zod.number(),
+  "unit": zod.string().describe('Единица измерения товара; нужна для понятного уведомления'),
+  "remainingQuantity": zod.number().nullish(),
+  "unitPrice": zod.number(),
+  "saleUnitPrice": zod.number().min(createBulkReceiptResponseMovementsItemSaleUnitPriceMin).nullish(),
+  "totalCost": zod.number().min(createBulkReceiptResponseMovementsItemTotalCostMin),
+  "reason": zod.string(),
+  "excludeFromStats": zod.boolean().default(createBulkReceiptResponseMovementsItemExcludeFromStatsDefault).describe('Не учитывать операцию в статистике (ошибочно добавленный товар, пересорт)'),
+  "orderNumber": zod.string().nullish(),
+  "productionBatchId": zod.string().nullish().describe('Партия сборки, к которой относится операция'),
+  "assistantBatchId": zod.string().nullish().describe('Идентификатор набора операций одной команды ассистента'),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "reversalOfMovementId": zod.number().nullish(),
+  "createdBy": zod.number().nullish().describe('Кто провёл операцию'),
+  "createdByName": zod.string().nullish().describe('Имя автора операции'),
+  "markupPercent": zod.number().optional(),
+  "previousMarkupPercent": zod.number().nullish().describe('Наценка до операции'),
+  "batchAllocations": zod.array(zod.object({
+  "receiptMovementId": zod.number(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().min(createBulkReceiptResponseMovementsItemBatchAllocationsItemUnitPriceMin),
+  "lineCost": zod.number().min(createBulkReceiptResponseMovementsItemBatchAllocationsItemLineCostMin),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "supplier": zod.string().nullish()
+})),
+  "createdAt": zod.coerce.date()
+})).describe('Созданные операции — по одной на строку'),
+  "totalQuantity": zod.number().describe('Сколько единиц всего'),
+  "totalCost": zod.number().describe('Сумма закупки для прихода, себестоимость расхода для продажи и списания'),
+  "totalRevenue": zod.number().nullish().describe('Выручка; есть только у продажи, у прихода и списания — null')
+})
+
+
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна (нет товара, нулевое количество, не хватает остатка), не продаётся ничего. Цена продажи по строке необязательна: пусто — берётся цена товара по наценке.
+ * @summary Продажа нескольких товаров сразу
+ */
+export const createBulkExpenseBodyPositionsItemQuantityExclusiveMin = 0;
+
+export const createBulkExpenseBodyPositionsItemSaleUnitPriceMin = 0;
+
+export const createBulkExpenseBodyPositionsMax = 50;
+
+
+
+export const CreateBulkExpenseBody = zod.object({
+  "positions": zod.array(zod.object({
+  "productId": zod.number().describe('Товар из каталога'),
+  "quantity": zod.number().gt(createBulkExpenseBodyPositionsItemQuantityExclusiveMin).describe('Количество в единицах товара'),
+  "saleUnitPrice": zod.number().min(createBulkExpenseBodyPositionsItemSaleUnitPriceMin).optional().describe('Цена продажи за единицу'),
+  "receiptMovementId": zod.number().optional().describe('Из какой партии списать; пусто — по FIFO')
+})).min(1).max(createBulkExpenseBodyPositionsMax).describe('Позиции продажи; одинаковый товар можно указать дважды — спишется из разных партий'),
+  "reason": zod.string().nullish().describe('Комментарий к продаже'),
+  "excludeFromStats": zod.boolean().optional().describe('Не учитывать всю продажу в статистике')
+})
+
+export const createBulkExpenseResponseMovementsItemSaleUnitPriceMin = 0;
+
+export const createBulkExpenseResponseMovementsItemTotalCostMin = 0;
+
+export const createBulkExpenseResponseMovementsItemExcludeFromStatsDefault = false;
+export const createBulkExpenseResponseMovementsItemBatchAllocationsItemUnitPriceMin = 0;
+
+export const createBulkExpenseResponseMovementsItemBatchAllocationsItemLineCostMin = 0;
+
+
+
+export const CreateBulkExpenseResponse = zod.object({
+  "movements": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "type": zod.enum(['receipt', 'expense', 'writeoff', 'transfer', 'production_input', 'production_output']),
+  "quantity": zod.number(),
+  "unit": zod.string().describe('Единица измерения товара; нужна для понятного уведомления'),
+  "remainingQuantity": zod.number().nullish(),
+  "unitPrice": zod.number(),
+  "saleUnitPrice": zod.number().min(createBulkExpenseResponseMovementsItemSaleUnitPriceMin).nullish(),
+  "totalCost": zod.number().min(createBulkExpenseResponseMovementsItemTotalCostMin),
+  "reason": zod.string(),
+  "excludeFromStats": zod.boolean().default(createBulkExpenseResponseMovementsItemExcludeFromStatsDefault).describe('Не учитывать операцию в статистике (ошибочно добавленный товар, пересорт)'),
+  "orderNumber": zod.string().nullish(),
+  "productionBatchId": zod.string().nullish().describe('Партия сборки, к которой относится операция'),
+  "assistantBatchId": zod.string().nullish().describe('Идентификатор набора операций одной команды ассистента'),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "reversalOfMovementId": zod.number().nullish(),
+  "createdBy": zod.number().nullish().describe('Кто провёл операцию'),
+  "createdByName": zod.string().nullish().describe('Имя автора операции'),
+  "markupPercent": zod.number().optional(),
+  "previousMarkupPercent": zod.number().nullish().describe('Наценка до операции'),
+  "batchAllocations": zod.array(zod.object({
+  "receiptMovementId": zod.number(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().min(createBulkExpenseResponseMovementsItemBatchAllocationsItemUnitPriceMin),
+  "lineCost": zod.number().min(createBulkExpenseResponseMovementsItemBatchAllocationsItemLineCostMin),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "supplier": zod.string().nullish()
+})),
+  "createdAt": zod.coerce.date()
+})).describe('Созданные операции — по одной на строку'),
+  "totalQuantity": zod.number().describe('Сколько единиц всего'),
+  "totalCost": zod.number().describe('Сумма закупки для прихода, себестоимость расхода для продажи и списания'),
+  "totalRevenue": zod.number().nullish().describe('Выручка; есть только у продажи, у прихода и списания — null')
+})
+
+
+/**
+ * Проводит все позиции в одной транзакции: если хотя бы одна строка неверна, не списывается ничего. Причина общая на документ, но у строки может быть своя.
+ * @summary Списание нескольких товаров сразу
+ */
+export const createBulkWriteoffBodyPositionsItemQuantityExclusiveMin = 0;
+
+export const createBulkWriteoffBodyPositionsMax = 50;
+
+
+
+export const CreateBulkWriteoffBody = zod.object({
+  "positions": zod.array(zod.object({
+  "productId": zod.number().describe('Товар из каталога'),
+  "quantity": zod.number().gt(createBulkWriteoffBodyPositionsItemQuantityExclusiveMin).describe('Количество в единицах товара'),
+  "reason": zod.string().nullish().describe('Своя причина списания для строки'),
+  "receiptMovementId": zod.number().optional().describe('Из какой партии списать; пусто — по FIFO')
+})).min(1).max(createBulkWriteoffBodyPositionsMax).describe('Позиции списания; одинаковый товар можно указать дважды — спишется из разных партий'),
+  "reason": zod.string().nullish().describe('Общая причина списания'),
+  "excludeFromStats": zod.boolean().optional().describe('Не учитывать всё списание в статистике')
+})
+
+export const createBulkWriteoffResponseMovementsItemSaleUnitPriceMin = 0;
+
+export const createBulkWriteoffResponseMovementsItemTotalCostMin = 0;
+
+export const createBulkWriteoffResponseMovementsItemExcludeFromStatsDefault = false;
+export const createBulkWriteoffResponseMovementsItemBatchAllocationsItemUnitPriceMin = 0;
+
+export const createBulkWriteoffResponseMovementsItemBatchAllocationsItemLineCostMin = 0;
+
+
+
+export const CreateBulkWriteoffResponse = zod.object({
+  "movements": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "type": zod.enum(['receipt', 'expense', 'writeoff', 'transfer', 'production_input', 'production_output']),
+  "quantity": zod.number(),
+  "unit": zod.string().describe('Единица измерения товара; нужна для понятного уведомления'),
+  "remainingQuantity": zod.number().nullish(),
+  "unitPrice": zod.number(),
+  "saleUnitPrice": zod.number().min(createBulkWriteoffResponseMovementsItemSaleUnitPriceMin).nullish(),
+  "totalCost": zod.number().min(createBulkWriteoffResponseMovementsItemTotalCostMin),
+  "reason": zod.string(),
+  "excludeFromStats": zod.boolean().default(createBulkWriteoffResponseMovementsItemExcludeFromStatsDefault).describe('Не учитывать операцию в статистике (ошибочно добавленный товар, пересорт)'),
+  "orderNumber": zod.string().nullish(),
+  "productionBatchId": zod.string().nullish().describe('Партия сборки, к которой относится операция'),
+  "assistantBatchId": zod.string().nullish().describe('Идентификатор набора операций одной команды ассистента'),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "reversalOfMovementId": zod.number().nullish(),
+  "createdBy": zod.number().nullish().describe('Кто провёл операцию'),
+  "createdByName": zod.string().nullish().describe('Имя автора операции'),
+  "markupPercent": zod.number().optional(),
+  "previousMarkupPercent": zod.number().nullish().describe('Наценка до операции'),
+  "batchAllocations": zod.array(zod.object({
+  "receiptMovementId": zod.number(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().min(createBulkWriteoffResponseMovementsItemBatchAllocationsItemUnitPriceMin),
+  "lineCost": zod.number().min(createBulkWriteoffResponseMovementsItemBatchAllocationsItemLineCostMin),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "supplier": zod.string().nullish()
+})),
+  "createdAt": zod.coerce.date()
+})).describe('Созданные операции — по одной на строку'),
+  "totalQuantity": zod.number().describe('Сколько единиц всего'),
+  "totalCost": zod.number().describe('Сумма закупки для прихода, себестоимость расхода для продажи и списания'),
+  "totalRevenue": zod.number().nullish().describe('Выручка; есть только у продажи, у прихода и списания — null')
+})
+
+
+/**
+ * Поставка — это приход, проведённый в один момент одним человеком. Позиции одной накладной пишутся одной транзакцией, поэтому у них совпадает время создания: по нему и собирается документ. Так же выглядят и старые приходы, сделанные до появления списка.
+ * @summary Список поставок — приходы, сгруппированные по документу
+ */
+export const listDeliveriesQueryLimitDefault = 50;
+export const listDeliveriesQueryLimitMax = 100;
+
+export const listDeliveriesQueryOffsetDefault = 0;
+export const listDeliveriesQueryOffsetMin = 0;
+
+export const listDeliveriesQuerySearchMax = 100;
+
+
+
+export const ListDeliveriesQueryParams = zod.object({
+  "limit": zod.coerce.number().min(1).max(listDeliveriesQueryLimitMax).default(listDeliveriesQueryLimitDefault),
+  "offset": zod.coerce.number().min(listDeliveriesQueryOffsetMin).default(listDeliveriesQueryOffsetDefault),
+  "search": zod.coerce.string().max(listDeliveriesQuerySearchMax).optional().describe('Поиск по номеру накладной, товару и поставщику'),
+  "from": zod.date().optional().describe('Дата прихода с'),
+  "to": zod.date().optional().describe('Дата прихода по')
+})
+
+export const ListDeliveriesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "key": zod.string().describe('Идентификатор поставки для запроса позиций'),
+  "deliveredAt": zod.coerce.date().describe('Когда провели приход'),
+  "arrivedAt": zod.coerce.date().nullish().describe('Дата прихода — как записана в накладной'),
+  "orderNumber": zod.string().nullish().describe('Номер накладной, если его указали'),
+  "suppliers": zod.array(zod.string()).optional().describe('Поставщики товаров поставки'),
+  "products": zod.array(zod.string()).optional().describe('Названия позиций — чтобы узнать поставку в списке'),
+  "positions": zod.number().describe('Сколько позиций в поставке'),
+  "quantity": zod.number().describe('Сколько единиц всего'),
+  "cost": zod.number().describe('Сумма закупки'),
+  "createdBy": zod.number().nullish(),
+  "createdByName": zod.string().nullish().describe('Кто провёл приход; null у старых операций без автора')
+})),
+  "total": zod.number().describe('Сколько поставок всего под фильтром')
+})
+
+
+/**
+ * @summary Позиции одной поставки
+ */
+export const GetDeliveryParams = zod.object({
+  "key": zod.coerce.string().describe('Идентификатор поставки из списка')
+})
+
+export const getDeliveryResponseMovementsItemSaleUnitPriceMin = 0;
+
+export const getDeliveryResponseMovementsItemTotalCostMin = 0;
+
+export const getDeliveryResponseMovementsItemExcludeFromStatsDefault = false;
+export const getDeliveryResponseMovementsItemBatchAllocationsItemUnitPriceMin = 0;
+
+export const getDeliveryResponseMovementsItemBatchAllocationsItemLineCostMin = 0;
+
+
+
+export const GetDeliveryResponse = zod.object({
+  "delivery": zod.object({
+  "key": zod.string().describe('Идентификатор поставки для запроса позиций'),
+  "deliveredAt": zod.coerce.date().describe('Когда провели приход'),
+  "arrivedAt": zod.coerce.date().nullish().describe('Дата прихода — как записана в накладной'),
+  "orderNumber": zod.string().nullish().describe('Номер накладной, если его указали'),
+  "suppliers": zod.array(zod.string()).optional().describe('Поставщики товаров поставки'),
+  "products": zod.array(zod.string()).optional().describe('Названия позиций — чтобы узнать поставку в списке'),
+  "positions": zod.number().describe('Сколько позиций в поставке'),
+  "quantity": zod.number().describe('Сколько единиц всего'),
+  "cost": zod.number().describe('Сумма закупки'),
+  "createdBy": zod.number().nullish(),
+  "createdByName": zod.string().nullish().describe('Кто провёл приход; null у старых операций без автора')
+}),
+  "movements": zod.array(zod.object({
+  "id": zod.number(),
+  "productId": zod.number(),
+  "productName": zod.string(),
+  "type": zod.enum(['receipt', 'expense', 'writeoff', 'transfer', 'production_input', 'production_output']),
+  "quantity": zod.number(),
+  "unit": zod.string().describe('Единица измерения товара; нужна для понятного уведомления'),
+  "remainingQuantity": zod.number().nullish(),
+  "unitPrice": zod.number(),
+  "saleUnitPrice": zod.number().min(getDeliveryResponseMovementsItemSaleUnitPriceMin).nullish(),
+  "totalCost": zod.number().min(getDeliveryResponseMovementsItemTotalCostMin),
+  "reason": zod.string(),
+  "excludeFromStats": zod.boolean().default(getDeliveryResponseMovementsItemExcludeFromStatsDefault).describe('Не учитывать операцию в статистике (ошибочно добавленный товар, пересорт)'),
+  "orderNumber": zod.string().nullish(),
+  "productionBatchId": zod.string().nullish().describe('Партия сборки, к которой относится операция'),
+  "assistantBatchId": zod.string().nullish().describe('Идентификатор набора операций одной команды ассистента'),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "reversalOfMovementId": zod.number().nullish(),
+  "createdBy": zod.number().nullish().describe('Кто провёл операцию'),
+  "createdByName": zod.string().nullish().describe('Имя автора операции'),
+  "markupPercent": zod.number().optional(),
+  "previousMarkupPercent": zod.number().nullish().describe('Наценка до операции'),
+  "batchAllocations": zod.array(zod.object({
+  "receiptMovementId": zod.number(),
+  "quantity": zod.number(),
+  "unitPrice": zod.number().min(getDeliveryResponseMovementsItemBatchAllocationsItemUnitPriceMin),
+  "lineCost": zod.number().min(getDeliveryResponseMovementsItemBatchAllocationsItemLineCostMin),
+  "batchArrivalDate": zod.coerce.date().nullish(),
+  "cutDate": zod.coerce.date().nullish(),
+  "expiresAt": zod.coerce.date().nullish(),
+  "supplier": zod.string().nullish()
+})),
+  "createdAt": zod.coerce.date()
+})).describe('Позиции поставки')
+})
+
+
 export const getMovementAnalyticsQueryBreakdownDefault = `category`;
 
 export const GetMovementAnalyticsQueryParams = zod.object({

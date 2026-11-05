@@ -1,3 +1,15 @@
+/* Шрифт интерфейса — Golos Text (OFL-1.1), кириллица родная, а не расширение набора.
+   Лежит в пакете @fontsource, поэтому отдаётся с нашего сервера: внешних CDN нет и
+   офлайн-PWA шрифт тоже получает. Подключены только нужные веса и подмножества —
+   четыре файла вместо девяти. */
+@import '@fontsource/golos-text/cyrillic-400.css';
+@import '@fontsource/golos-text/cyrillic-500.css';
+@import '@fontsource/golos-text/cyrillic-600.css';
+@import '@fontsource/golos-text/cyrillic-700.css';
+@import '@fontsource/golos-text/latin-400.css';
+@import '@fontsource/golos-text/latin-500.css';
+@import '@fontsource/golos-text/latin-600.css';
+@import '@fontsource/golos-text/latin-700.css';
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
@@ -102,7 +114,9 @@
   --accent: 30 30% 92%;
   --accent-foreground: 335 40% 25%;
 
-  --destructive: 0 70% 50%;
+  /* 50% не хватало: подпись «Списание» на своей же светлой подложке давала 4.2 при
+     норме 4.5. 45% того же тона читается и на белом, и на розовом фоне. */
+  --destructive: 0 70% 45%;
   --destructive-foreground: 0 0% 100%;
 
   --input: 335 10% 90%;
@@ -114,10 +128,15 @@
   --chart-4: 280 30% 50%;
   --chart-5: 15 50% 60%;
 
-  --app-font-sans: 'Inter', sans-serif;
+  --app-font-sans: 'Golos Text', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --app-font-serif: Georgia, serif;
   --app-font-mono: Menlo, monospace;
-  --radius: 0.75rem;
+  /*
+   * Строже: было 0.75rem (12px), из-за чего карточки выходили 16px по углам и весь вид
+   * был мягким. 6px даёт карточки 6px, кнопки и поля 4px — форма читается как рабочий
+   * инструмент, а не как лендинг.
+   */
+  --radius: 0.375rem;
   
   --shadow-2xs: 0px 2px 0px 0px hsl(335 40% 20% / 0.05);
   --shadow-xs: 0px 2px 0px 0px hsl(335 40% 20% / 0.05);
@@ -150,6 +169,11 @@
   --elevate-1: rgba(255, 255, 255, 0.04);
   --elevate-2: rgba(255, 255, 255, 0.09);
 
+  /* Нативные элементы — календарь в поле даты, полосы прокрутки, автозаполнение —
+     рисует браузер, а не Tailwind. Без этого свойства они остаются светлыми на
+     тёмном фоне; на телефоне это особенно заметно в полях даты. */
+  color-scheme: dark;
+
   --background: 335 15% 10%;
   --foreground: 30 20% 95%;
   --card: 335 15% 12%;
@@ -172,6 +196,12 @@
 
   --primary: 335 40% 40%;
   --primary-foreground: 0 0% 100%;
+
+  /* Фон кнопки и цвет текста в тёмной теме — разные оттенки одного тона.
+     Насыщенный `--primary` хорош как заливка кнопки с белой подписью, но как цвет
+     текста на тёмном фоне даёт контраст 2.4 при норме 4.5: ссылки «Подробнее» и
+     суммы в таблице сливаются с подложкой. Поэтому текст берёт светлый оттенок. */
+  --primary-text: 335 55% 70%;
   
   --secondary: 110 20% 35%;
   --secondary-foreground: 0 0% 100%;
@@ -188,6 +218,10 @@
   --input: 335 15% 22%;
   --ring: 335 40% 40%;
 
+  /* Как и у основного цвета: заливка кнопки удаления остаётся насыщенной, а текст
+     предупреждений на тёмном фоне берёт светлый оттенок. */
+  --destructive-text: 0 70% 68%;
+
   /* В тёмной теме цвета графиков светлее: на тёмном фоне приглушённые тона
      сливаются с подложкой. */
   --chart-1: 335 45% 60%;
@@ -195,9 +229,33 @@
   --chart-3: 35 65% 60%;
 }
 
+/* `text-primary` в тёмной теме берёт светлый оттенок, а `bg-primary` остаётся
+   насыщенным. Одним токеном это не решается: для заливки нужен тёмный цвет (белая
+   подпись), а для текста — светлый. Проверка контраста в `check-theme-ui.mjs` следит,
+   чтобы это не разошлось снова. */
+.dark .text-primary {
+  color: hsl(var(--primary-text));
+}
+
+/* То же для предупреждений: на тёмном фоне насыщенный красный читается плохо. */
+.dark .text-destructive {
+  color: hsl(var(--destructive-text));
+}
+
+/* Полупрозрачный вариант — с той же поправкой, иначе «Позиций ниже минимума»
+   под цифрой остаётся тусклым. */
+.dark .text-destructive\/80 {
+  color: hsl(var(--destructive-text) / 0.85);
+}
+
 @layer base {
   * {
     @apply border-border;
+  }
+  /* Светлая тема — состояние по умолчанию; тёмная включает `color-scheme: dark`
+     в блоке `.dark` выше. */
+  html {
+    color-scheme: light;
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;

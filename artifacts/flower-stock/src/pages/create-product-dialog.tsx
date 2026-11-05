@@ -11,6 +11,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCreateProduct, getListProductsQueryKey, getGetDashboardQueryKey } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
@@ -28,6 +29,9 @@ const productSchema = z.object({
   supplier: z.string().optional(),
   unit: z.string().min(1, "Обязательное поле").default("шт"),
   minimumStock: z.coerce.number().min(0),
+  // «Срока нет» — не то же самое, что «срок 0 дней» для человека, хотя в базе это одно
+  // число. Флаг нужен, чтобы поле дней было выключено и не сбивало с толку.
+  noShelfLife: z.boolean().default(false),
   shelfLifeDays: z.coerce.number().min(0),
 })
 
@@ -49,6 +53,7 @@ export function CreateProductDialog() {
       supplier: "",
       unit: "шт",
       minimumStock: 10,
+      noShelfLife: false,
       shelfLifeDays: 14,
     },
   })
@@ -69,10 +74,13 @@ export function CreateProductDialog() {
   })
 
   function onSubmit(values: z.infer<typeof productSchema>) {
-    const { aliasesText, ...data } = values
+    // Флаг — только для формы: в API уходит одно число, где 0 значит «срока нет».
+    // Отправлять лишнее поле в контракт нельзя, даже если сервер его молча отбросит.
+    const { aliasesText, noShelfLife, ...data } = values
     createProduct({
       data: {
         ...data,
+        shelfLifeDays: noShelfLife ? 0 : data.shelfLifeDays,
         aliases: aliasesText.split(",").map((alias) => alias.trim()).filter(Boolean),
       },
     })
@@ -213,12 +221,50 @@ export function CreateProductDialog() {
                   <FormItem>
                     <FormLabel>Срок жизни (дней)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} />
+                      <Input
+                        id="shelf-life-days"
+                        type="number"
+                        {...field}
+                        // При «без срока» поле выключено и показывает 0: иначе человек
+                        // вписывает число, а оно ни на что не влияет.
+                        disabled={form.watch("noShelfLife")}
+                        value={form.watch("noShelfLife") ? 0 : field.value}
+                        onChange={(event) => {
+                          field.onChange(event)
+                          if (Number(event.target.value) > 0) {
+                            form.setValue("noShelfLife", false)
+                          }
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+            </div>
+
+            <div className="flex items-start gap-3 rounded-lg border p-3">
+              <Checkbox
+                checked={form.watch("noShelfLife")}
+                onCheckedChange={(checked: boolean | "indeterminate") => {
+                  const off = checked === true
+                  form.setValue("noShelfLife", off)
+                  // Возвращая срок, подставляем привычные 14 дней: пустое поле после
+                  // снятия галочки выглядело бы как ошибка.
+                  if (!off && !(Number(form.getValues("shelfLifeDays")) > 0)) {
+                    form.setValue("shelfLifeDays", 14)
+                  }
+                }}
+                aria-label="Без срока годности"
+                className="mt-0.5 h-6 w-6"
+              />
+              <div className="space-y-1 leading-none">
+                <p className="text-sm font-medium">Без срока годности</p>
+                <p className="text-xs text-muted-foreground">
+                  Для упаковки, ленты, ваз и прочего, что не портится. Приход такого товара не
+                  получит дату истечения, и он не попадёт в «истекает скоро».
+                </p>
+              </div>
             </div>
             <div className="flex justify-end pt-4">
               <Button type="submit" disabled={isPending}>

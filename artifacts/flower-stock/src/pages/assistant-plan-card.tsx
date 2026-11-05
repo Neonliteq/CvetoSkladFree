@@ -190,7 +190,7 @@ export function AssistantPlanCard({
   const undoable = review.status === "applied" && Boolean(review.batchId) && review.appliedCount > 0
 
   return (
-    <div className="w-full rounded-xl border bg-card shadow-sm">
+    <div className="w-full rounded-lg border bg-card shadow-sm" data-testid="assistant-plan-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-3 md:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <Sparkles className="h-4 w-4 shrink-0 text-primary" />
@@ -233,7 +233,7 @@ export function AssistantPlanCard({
       {plan.clarifications.map((clarification) => (
         <div key={`cl-${clarification.index}`} className="border-t px-3 py-3 md:px-4">
           <div className="flex items-start gap-2">
-            <CircleHelp className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <CircleHelp className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="min-w-0">
               <p className="text-sm font-medium">
                 {`${typeLabel(clarification.type)}: «${clarification.asked}» — ${clarification.quantity} ед.`}
@@ -253,7 +253,7 @@ export function AssistantPlanCard({
               onSelectOption={onSelectOption}
             />
           ) : (
-            <p className="mt-2 text-xs text-amber-600">
+            <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
               {clarification.message ?? "Товар не распознан — назовите его точнее."}
             </p>
           )}
@@ -313,7 +313,7 @@ export function AssistantPlanCard({
                 Набор отменён, остатки восстановлены
               </span>
             ) : review.appliedCount > 0 ? (
-              <span className="inline-flex items-center gap-1 text-green-700">
+              <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400">
                 <Check className="h-3.5 w-3.5" />
                 {`Проведено позиций: ${review.appliedCount}`}
               </span>

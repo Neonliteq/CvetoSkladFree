@@ -250,7 +250,11 @@ export async function runReadTool(name: string, rawArguments: string): Promise<s
       `${product.name} (${product.category}${product.variety ? `, ${product.variety}` : ""}${product.color ? `, ${product.color}` : ""})`,
       `остаток ${product.currentStock} ${product.unit}, минимум ${product.minimumStock}`,
       `закупка ${money(product.purchasePrice)}, средняя ${money(product.averagePrice)}, наценка ${product.markupPercent}%, продажа ${money(product.salePrice)}`,
-      `срок годности ${product.shelfLifeDays} дн.`,
+      // Ноль дней — это «срока нет», а не «срок ноль дней»: так и говорим, иначе ассистент
+      // сообщает бессмыслицу про упаковку и ленту.
+      product.shelfLifeDays > 0
+        ? `срок годности ${product.shelfLifeDays} дн.`
+        : "без срока годности",
       history ? `последние операции: ${history}` : "операций пока нет",
     ].join("\n");
   }

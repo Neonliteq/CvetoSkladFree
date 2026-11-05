@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ProductPicker } from "@/components/product-picker"
 import { useCreateMovement, getListMovementsQueryKey, getGetDashboardQueryKey, getListProductsQueryKey, useListProducts, useListProductReceipts, useListBouquetStockBatches, getListBouquetsQueryKey } from "@workspace/api-client-react"
 import { useQueryClient } from "@tanstack/react-query"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
@@ -245,30 +246,23 @@ export function CreateMovementDialog({
               name="productId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Товар</FormLabel>
-                  <Select
-                    onValueChange={(value) => {
-                      field.onChange(value)
+                  <FormLabel htmlFor="movement-product">Товар</FormLabel>
+                  {/* Поиск внутри выбора: при 95 позициях листать список каждый раз
+                      неудобно, а магазин называет товары по-своему — по псевдониму
+                      товар тоже находится. */}
+                  <ProductPicker
+                    id="movement-product"
+                    products={products}
+                    value={field.value}
+                    ariaLabel="Товар"
+                    onChange={(productId) => {
+                      field.onChange(productId)
                       // Партия прежнего товара к новому не относится: без сброса
                       // сервер получил бы чужой приход или чужую сборку.
                       form.setValue("receiptMovementId", undefined)
                       form.setValue("productionBatchId", undefined)
                     }}
-                    value={field.value ? String(field.value) : undefined}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Выберите товар" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {products?.map(p => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.name} {p.variety ? `(${p.variety})` : ''} - в наличии: {p.currentStock} {p.unit}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  />
                   <FormMessage />
                 </FormItem>
               )}

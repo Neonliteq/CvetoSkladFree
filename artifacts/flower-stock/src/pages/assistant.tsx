@@ -33,7 +33,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { Send, Sparkles, User, Bot, RotateCcw, Undo2, ImagePlus, Loader2, Check, Mic, MicOff, Camera } from "lucide-react"
+import { Send, Sparkles, User, Bot, RotateCcw, Undo2, ImagePlus, Loader2, Check, Mic, MicOff, Camera, ArrowUpRight, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import {
   getOrCreateConversationId,
@@ -72,7 +72,7 @@ const INITIAL_SUGGESTIONS = [
 const WELCOME_MESSAGE: Message = {
   id: "init",
   role: "assistant",
-  content: "Привет! Я помню контекст этого диалога. Можно уточнять предыдущую просьбу короткими фразами — например, «да, этот товар» или «добавь ещё 10».",
+  content: "Привет! Разберу ваш текст на складские операции. Простую команду провожу сразу, составную — покажу и проведу после подтверждения. Уточнять можно короткими фразами.",
   suggestions: INITIAL_SUGGESTIONS,
 }
 
@@ -113,6 +113,8 @@ export default function AssistantPage() {
   })
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE])
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Пока человек ничего не спрашивал, показываем панель «чем помочь» вместо пустого полотна.
+  const hasUserMessages = messages.some((message) => message.role === "user")
   const queryClient = useQueryClient()
   const { data: conversation, isLoading: isHistoryLoading } = useGetAssistantConversation(
     conversationId,
@@ -474,7 +476,7 @@ export default function AssistantPage() {
         <div className="min-w-0">
           {/* The mobile top bar already names the section, so repeating it here
               would only cost a row of the chat. */}
-          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight text-foreground md:gap-3 md:text-3xl">
+          <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight text-foreground md:gap-3 md:text-3xl">
             <Sparkles className="hidden h-6 w-6 shrink-0 text-primary md:block md:h-8 md:w-8" />
             <span className="truncate">AI Ассистент</span>
           </h1>
@@ -518,7 +520,7 @@ export default function AssistantPage() {
               <div className={`flex min-w-0 flex-col gap-2 ${msg.role === 'user' ? 'items-end' : 'items-start'} ${
                 msg.invoiceDraft || msg.plan ? "flex-1" : ""
               }`}>
-                <div className={`px-3 py-2.5 rounded-2xl md:px-4 md:py-3 ${
+                <div className={`px-3 py-2.5 rounded-lg md:px-4 md:py-3 ${
                   msg.role === 'user' 
                     ? 'bg-primary text-primary-foreground rounded-tr-sm' 
                     : 'bg-card border shadow-sm rounded-tl-sm'
@@ -572,7 +574,7 @@ export default function AssistantPage() {
                 {/* The review cards already state their status, so the generic
                     action badge would only duplicate it. */}
                 {msg.action && msg.action !== 'unknown' && msg.action !== 'answered' && !msg.invoiceDraft && !msg.invoiceReview && !msg.plan && (
-                  <Badge variant="secondary" className="flex items-center gap-1.5 text-xs bg-green-500/10 text-green-700 hover:bg-green-500/20 border-0">
+                  <Badge variant="secondary" className="flex items-center gap-1.5 text-xs bg-green-500/10 text-green-700 dark:text-green-400 hover:bg-green-500/20 border-0">
                     {actionLabel(msg.action)}
                   </Badge>
                 )}
@@ -599,7 +601,7 @@ export default function AssistantPage() {
                   </Button>
                 )}
 
-                {msg.suggestions && msg.role === 'assistant' && msg.id === messages[messages.length - 1].id && (
+                {msg.suggestions && msg.role === 'assistant' && hasUserMessages && msg.id === messages[messages.length - 1].id && (
                   // On a phone the chips used to stack into four rows; a single
                   // swipeable line keeps the conversation visible behind them.
                   <div className="-mx-1 mt-1 flex w-[calc(100%+0.5rem)] snap-x gap-2 overflow-x-auto px-1 pb-1 md:mx-0 md:mt-2 md:w-auto md:flex-wrap md:overflow-visible md:pb-0">
@@ -607,7 +609,7 @@ export default function AssistantPage() {
                       <button
                         key={i}
                         onClick={() => handleSend(sug)}
-                        className="flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap rounded-full bg-accent px-4 text-xs text-accent-foreground transition-colors hover:bg-accent/80 md:min-h-0 md:whitespace-normal md:py-1.5"
+                        className="flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap rounded-md bg-accent px-4 text-xs text-accent-foreground transition-colors hover:bg-accent/80 md:min-h-0 md:whitespace-normal md:py-1.5"
                       >
                         {sug}
                       </button>
@@ -617,6 +619,46 @@ export default function AssistantPage() {
               </div>
             </div>
           ))}
+          {!isHistoryLoading && !hasUserMessages && (
+            // Пустой диалог раньше был приветствием и чипами-подсказками, а под ними — пустое
+            // полотно на пол-экрана. Здесь видно, что ассистент умеет, с чего начать, и главное
+            // правило: операции проводятся только после подтверждения.
+            <div className="mt-1 w-full max-w-2xl rounded-lg border bg-card/60 p-4 md:mt-2 md:p-6">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                  <Sparkles className="h-4 w-4" />
+                </span>
+                <div className="min-w-0">
+                  <p className="font-medium">Чем помочь?</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Напишите обычной фразой — разберу на операции и покажу, что проведу.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {INITIAL_SUGGESTIONS.slice(0, 4).map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => handleSend(suggestion)}
+                    className="flex min-h-11 items-center justify-between gap-2 rounded-md border bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-accent/60"
+                  >
+                    <span className="min-w-0">{suggestion}</span>
+                    <ArrowUpRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </div>
+
+              <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
+                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Простую команду провожу сразу, составную — только после вашего подтверждения.
+                  Можно голосом или фото накладной.
+                </span>
+              </p>
+            </div>
+          )}
           {isPending && (
             // A composite command takes several seconds to break down, so the
             // waiting bubble names the step instead of showing dots alone.
@@ -624,7 +666,7 @@ export default function AssistantPage() {
                <div className="shrink-0 w-8 h-8 rounded-full bg-sidebar text-sidebar-foreground flex items-center justify-center">
                 <Bot className="h-4 w-4" />
               </div>
-              <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border bg-card px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 rounded-lg rounded-tl-sm border bg-card px-4 py-3 shadow-sm">
                 <div className="flex items-center gap-1">
                   <div className="w-2 h-2 bg-primary/40 rounded-full animate-bounce" />
                   <div className="w-2 h-2 bg-primary/60 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -639,7 +681,7 @@ export default function AssistantPage() {
               <div className="shrink-0 w-8 h-8 rounded-full bg-sidebar text-sidebar-foreground flex items-center justify-center">
                 <Bot className="h-4 w-4" />
               </div>
-              <div className="flex items-center gap-2 rounded-2xl rounded-tl-sm border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
+              <div className="flex items-center gap-2 rounded-lg rounded-tl-sm border bg-card px-4 py-3 text-sm text-muted-foreground shadow-sm">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Распознаю накладную и сверяю с каталогом...
               </div>
@@ -688,7 +730,7 @@ export default function AssistantPage() {
                 type="button"
                 variant={voice.isListening ? "default" : "outline"}
                 size="icon"
-                className={`h-11 w-11 shrink-0 rounded-xl md:h-12 md:w-12 ${
+                className={`h-11 w-11 shrink-0 rounded-lg md:h-12 md:w-12 ${
                   voice.isListening ? "animate-pulse ring-2 ring-primary/40" : ""
                 }`}
                 title={
@@ -717,7 +759,7 @@ export default function AssistantPage() {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-11 w-11 shrink-0 rounded-xl sm:h-12 sm:w-12"
+                  className="h-11 w-11 shrink-0 rounded-lg sm:h-12 sm:w-12"
                   title="Фото накладной"
                   aria-label="Приложить фото накладной"
                   disabled={isRecognizing || isPending}
@@ -754,7 +796,7 @@ export default function AssistantPage() {
                     ? "Говорите — текст появится здесь..."
                     : "Напишите, продиктуйте или приложите фото накладной"
                 }
-                className={`pr-14 md:pr-12 bg-background focus-visible:ring-primary/30 h-11 rounded-xl text-base sm:h-12 md:text-sm ${
+                className={`pr-14 md:pr-12 bg-background focus-visible:ring-primary/30 h-11 rounded-lg text-base sm:h-12 md:text-sm ${
                   voice.isListening ? "border-primary/60" : "border-primary/20"
                 }`}
               />

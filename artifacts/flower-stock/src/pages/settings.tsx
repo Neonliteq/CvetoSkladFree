@@ -126,7 +126,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">Настройки</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">Настройки</h1>
         <p className="text-muted-foreground mt-1">
           Подключение AI-провайдера: ассистент, распознавание накладных и ответы в мессенджерах
           работают через него
